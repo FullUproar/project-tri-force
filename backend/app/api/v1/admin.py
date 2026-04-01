@@ -17,6 +17,9 @@ from app.core.security import get_current_tenant, hash_api_key
 from app.dependencies import get_db
 from app.models.database import ApiKey, ExtractionResult, IngestionJob, Organization
 
+import json
+from pathlib import Path
+
 router = APIRouter()
 
 
@@ -113,3 +116,47 @@ async def sign_baa(
     await db.commit()
 
     return {"status": "ok", "organization_id": str(org_id), "baa_signed_at": org.baa_signed_at.isoformat()}
+
+
+@router.post("/admin/load-demo-data")
+async def load_demo_data(
+    db: AsyncSession = Depends(get_db),
+    tenant: Organization = Depends(get_current_tenant),
+):
+    """Load synthetic demo cases into the current tenant's data."""
+    demo_file = Path(__file__).parent.parent.parent.parent / "docs" / "synthetic-demo-data.json"
+    if not demo_file.exists():
+        raise HTTPException(status_code=404, detail="Demo data file not found")
+
+    with open(demo_file) as f:
+        cases = json.load(f)
+
+    loaded = 0
+    for case in cases:
+        job = IngestionJob(
+            tenant_id=tenant.id,
+            source_type="clinical_note",
+            status="completed",
+            original_filename=f"demo-{case['patient_id']}.txt",
+            file_size_bytes=len(case.get("clinical_notes_text", "")),
+        )
+        db.add(job)
+        await db.flush()
+
+        ext = ExtractionResult(
+            tenant_id=tenant.id,
+            ingestion_job_id=job.id,
+            diagnosis_code=case.get("diagnosis_code"),
+            conservative_treatments_failed=case.get("conservative_treatments_failed", []),
+            implant_type_requested=case.get("device_requested", case.get("implant_type_requested", "Not specified")),
+            robotic_assistance_required=False,
+            clinical_justification=case.get("functional_impairment", ""),
+            confidence_score=0.95,
+            raw_extraction_json=case,
+            schema_version="ortho_v1" if case.get("case_type") in ("hip_replacement", "knee_arthroscopy", "rotator_cuff_repair") else "spine_v1",
+        )
+        db.add(ext)
+        loaded += 1
+
+    await db.commit()
+    return {"status": "ok", "cases_loaded": loaded}

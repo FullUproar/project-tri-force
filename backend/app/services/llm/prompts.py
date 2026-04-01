@@ -12,6 +12,24 @@ Rules:
 
 If the text does not contain sufficient information for a field, use "Not found" for strings, empty list for lists, false for booleans, and 0.0 for confidence."""
 
+SPINE_PAIN_EXTRACTION_PROMPT = """You are a clinical data extraction specialist for spine surgery and pain management prior authorization.
+
+Given the following de-identified clinical text, extract the structured data required for insurance prior authorization.
+
+Rules:
+- diagnosis_code must be a valid ICD-10 code. Common spine/pain codes: M54.5 (low back pain), G89.4 (chronic pain syndrome), M47.816 (spondylosis with myelopathy, lumbar), M51.16 (lumbar disc disorder with radiculopathy), M48.06 (spinal stenosis, lumbar), G89.29 (other chronic pain).
+- procedure_cpt_code: extract if mentioned. Common: 63650 (SCS trial), 63685 (SCS permanent), 62322 (lumbar epidural), 22551 (cervical fusion), 22612 (lumbar fusion), 22630 (lumbar interbody fusion).
+- conservative_treatments_failed: list ONLY treatments explicitly mentioned. Include durations if stated (e.g., "PT x 6 weeks"). Common: physical therapy, NSAIDs, opioid management, epidural steroid injections, nerve blocks, TENS unit, chiropractic care.
+- imaging_findings: extract the specific findings from MRI/CT (disc herniation, stenosis, spondylolisthesis, etc.)
+- imaging_date: extract if mentioned, format as YYYY-MM-DD.
+- symptom_duration_months: extract the total duration of symptoms in months.
+- functional_impairment: extract specific functional limitations mentioned.
+- prior_surgical_history: extract any previous spine or pain procedures.
+- device_requested: extract specific device if mentioned (e.g., "Medtronic Intellis SCS", "Boston Scientific WaveWriter").
+- confidence_score: your confidence that ALL fields are correct (0.0 to 1.0).
+
+If the text does not contain sufficient information for a field, use "Not found" for strings, empty list for lists, 0 for integers, and 0.0 for confidence."""
+
 AI_DISCLOSURE_TEXT = (
     "This prior authorization document was prepared with AI assistance using CortaLoom.AI. "
     "AI technology (Anthropic Claude) was used to extract clinical data from provider documentation "

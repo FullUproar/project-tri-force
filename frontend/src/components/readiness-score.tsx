@@ -26,6 +26,13 @@ function analyzeReadiness(ext: ExtractionResult): { score: number; gaps: Gap[] }
       tip: "Most payers require at least 3 failed conservative treatments",
     },
     {
+      label: "Treatment durations documented",
+      met: ext.conservative_treatments_failed?.some((t) =>
+        /\d+\s*(week|month|day|wk|mo)/i.test(t)
+      ) || false,
+      tip: "Include durations (e.g., 'PT x 8 weeks') — payers deny without timeframes",
+    },
+    {
       label: "Implant specified",
       met: !!ext.implant_type_requested && ext.implant_type_requested !== "Not specified",
       tip: "Specifying the exact implant system strengthens the request",
@@ -34,6 +41,13 @@ function analyzeReadiness(ext: ExtractionResult): { score: number; gaps: Gap[] }
       label: "Clinical justification",
       met: !!ext.clinical_justification && ext.clinical_justification.length > 50,
       tip: "A detailed clinical justification reduces denial risk",
+    },
+    {
+      label: "Imaging referenced",
+      met: /x-ray|radiograph|mri|ct scan|imaging|kellgren/i.test(
+        ext.clinical_justification || ""
+      ),
+      tip: "Payers require recent imaging evidence — ensure the note references imaging findings",
     },
     {
       label: "High AI confidence",

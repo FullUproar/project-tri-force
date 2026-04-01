@@ -149,15 +149,17 @@ async def export_pdf(
 
     elements = []
 
-    # Header
-    elements.append(Paragraph("CortaLoom — Prior Authorization", header_style))
-    elements.append(
-        Paragraph(
-            f"Generated: {datetime.now(timezone.utc).strftime('%B %d, %Y')} | "
-            f"Case Ref: {str(extraction_id)[:8]}",
-            sub_style,
-        )
-    )
+    # Header with case metadata
+    elements.append(Paragraph("CortaLoom — Prior Authorization Request", header_style))
+    meta_parts = [
+        f"Generated: {datetime.now(timezone.utc).strftime('%B %d, %Y')}",
+        f"Case Ref: {str(extraction_id)[:8]}",
+    ]
+    if ext.diagnosis_code:
+        meta_parts.append(f"Dx: {ext.diagnosis_code}")
+    if ext.outcome:
+        meta_parts.append(f"Outcome: {ext.outcome.capitalize()}")
+    elements.append(Paragraph(" | ".join(meta_parts), sub_style))
     elements.append(Spacer(1, 0.3 * inch))
 
     # Extracted Fields

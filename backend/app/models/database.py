@@ -29,6 +29,7 @@ class Organization(Base):
     baa_signed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     stripe_customer_id: Mapped[str | None] = mapped_column(String(100))
     subscription_status: Mapped[str | None] = mapped_column(String(20))  # active, past_due, canceled, trialing
+    verticals: Mapped[list | None] = mapped_column(JSONB)  # ["ortho"], ["ortho", "spine"], etc.
 
     api_keys: Mapped[list["ApiKey"]] = relationship(back_populates="organization")
 
@@ -103,6 +104,7 @@ class ExtractionResult(Base):
     confidence_score: Mapped[float | None] = mapped_column(Float)
     raw_extraction_json: Mapped[dict | None] = mapped_column(JSONB)
     outcome: Mapped[str | None] = mapped_column(String(20))  # approved, denied, pending, appealed
+    schema_version: Mapped[str | None] = mapped_column(String(10), default="ortho_v1")  # ortho_v1, spine_v1, dental_v1
 
     ingestion_job: Mapped["IngestionJob"] = relationship(back_populates="extraction_result")
     narratives: Mapped[list["PayerNarrative"]] = relationship(back_populates="extraction_result")

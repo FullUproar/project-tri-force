@@ -53,6 +53,43 @@ class OrthoPriorAuthData(BaseModel):
     )
 
 
+class SpinePainPriorAuthData(BaseModel):
+    """Structured extraction for spine surgery and pain management prior authorization."""
+
+    diagnosis_code: str = Field(description="ICD-10 code, e.g. M54.5, G89.4, M47.816")
+    procedure_cpt_code: str = Field(
+        default="", description="CPT code, e.g. 63650 (SCS trial), 62322 (epidural)"
+    )
+    conservative_treatments_failed: list[str] = Field(
+        default_factory=list,
+        description="Conservative treatments with durations (e.g., 'PT x 6 weeks', 'NSAIDs x 3 months')",
+    )
+    imaging_findings: str = Field(
+        default="", description="MRI/CT findings (disc herniation, stenosis, etc.)"
+    )
+    imaging_date: str = Field(
+        default="", description="Date of most recent imaging (YYYY-MM-DD)"
+    )
+    symptom_duration_months: int = Field(
+        default=0, description="Duration of symptoms in months"
+    )
+    functional_impairment: str = Field(
+        default="", description="Description of functional limitation"
+    )
+    prior_surgical_history: str = Field(
+        default="", description="Previous spine/pain surgeries (e.g., prior laminectomy)"
+    )
+    device_requested: str = Field(
+        default="Not specified", description="Spinal cord stimulator, intrathecal pump, implant system"
+    )
+    clinical_justification: str = Field(
+        default="", description="2-3 sentence clinical summary"
+    )
+    confidence_score: float = Field(
+        default=0.0, description="Confidence in extraction accuracy, 0.0 to 1.0"
+    )
+
+
 class ExtractionResultResponse(BaseModel):
     id: uuid.UUID
     diagnosis_code: str | None
