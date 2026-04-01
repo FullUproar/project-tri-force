@@ -2,7 +2,7 @@ import asyncio
 import uuid
 from collections.abc import AsyncGenerator
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,6 +24,7 @@ from app.services import storage
 from app.services.dicom_service import parse_dicom
 from app.services.pdf_parser import extract_text_from_pdf
 from app.services.phi_scrubber import scrub_text
+from app.core.audit import log_event, log_event_standalone
 from app.services.llm.extraction import extract_prior_auth_data
 
 router = APIRouter()
@@ -70,6 +71,17 @@ async def _process_text_ingestion(job_id: uuid.UUID, text: str):
             job = await db.get(IngestionJob, job_id)
             job.status = "completed"
             await db.commit()
+            await db.refresh(result)
+
+            await log_event(
+                db, "extract", "extraction_result", result.id,
+                metadata={
+                    "ingestion_job_id": str(job_id),
+                    "diagnosis_code": extraction.diagnosis_code,
+                    "confidence": extraction.confidence_score,
+                },
+            )
+            await db.commit()
 
             logger.info("Job %s completed successfully", str(job_id))
 
@@ -88,6 +100,7 @@ async def _process_text_ingestion(job_id: uuid.UUID, text: str):
 
 @router.post("/dicom", response_model=IngestionResponse)
 async def ingest_dicom(
+    request: Request,
     file: UploadFile,
     db: AsyncSession = Depends(get_db),
 ):
@@ -116,6 +129,13 @@ async def ingest_dicom(
     db.add(job)
     await db.commit()
     await db.refresh(job)
+
+    await log_event(
+        db, "ingest", "ingestion_job", job.id,
+        ip_address=request.client.host if request.client else None,
+        metadata={"source_type": "dicom", "file_size": len(file_bytes)},
+    )
+    await db.commit()
 
     return IngestionResponse(
         job_id=job.id,

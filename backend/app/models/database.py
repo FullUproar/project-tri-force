@@ -89,3 +89,20 @@ class ClinicalNoteEmbedding(Base):
     chunk_index: Mapped[int] = mapped_column(Integer)
     content: Mapped[str] = mapped_column(Text)
     embedding = mapped_column(Vector(1536))
+
+
+class AuditLog(Base):
+    __tablename__ = "audit_log"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    timestamp: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    action: Mapped[str] = mapped_column(String(50))  # ingest, extract, narrative, export
+    resource_type: Mapped[str | None] = mapped_column(String(30))
+    resource_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    request_id: Mapped[str | None] = mapped_column(String(36))
+    ip_address: Mapped[str | None] = mapped_column(String(45))
+    metadata_json: Mapped[dict | None] = mapped_column(JSONB)

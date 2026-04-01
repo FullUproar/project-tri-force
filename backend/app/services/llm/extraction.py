@@ -1,3 +1,5 @@
+import time
+
 from langchain_anthropic import ChatAnthropic
 from langchain_core.prompts import ChatPromptTemplate
 
@@ -24,19 +26,17 @@ def _get_extraction_chain():
 
 
 async def extract_prior_auth_data(scrubbed_text: ScrubbedText) -> OrthoPriorAuthData:
-    """Extract structured OrthoPriorAuthData from scrubbed clinical text.
-
-    Args:
-        scrubbed_text: PHI-scrubbed text (enforced by type system).
-
-    Returns:
-        OrthoPriorAuthData with extracted fields.
-    """
+    """Extract structured OrthoPriorAuthData from scrubbed clinical text."""
     chain = _get_extraction_chain()
+
+    start = time.monotonic()
     result = await chain.ainvoke({"text": str(scrubbed_text)})
+    latency_ms = round((time.monotonic() - start) * 1000)
 
     logger.info(
-        "Extraction complete: diagnosis=%s, confidence=%.2f",
+        '{"event": "llm_call", "type": "extraction", "model": "claude-sonnet-4-20250514", '
+        '"latency_ms": %d, "diagnosis": "%s", "confidence": %.2f}',
+        latency_ms,
         result.diagnosis_code,
         result.confidence_score,
     )

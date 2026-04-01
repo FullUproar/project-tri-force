@@ -1,3 +1,5 @@
+import time
+
 from langchain_anthropic import ChatAnthropic
 from langchain_core.prompts import ChatPromptTemplate
 
@@ -38,17 +40,10 @@ async def generate_narrative(
     extraction: OrthoPriorAuthData,
     additional_context: str = "",
 ) -> tuple[str, str, str]:
-    """Generate a payer submission narrative from extraction results.
-
-    Args:
-        extraction: The structured extraction data.
-        additional_context: Optional DICOM metadata or other context.
-
-    Returns:
-        Tuple of (narrative_text, model_used, prompt_version).
-    """
+    """Generate a payer submission narrative from extraction results."""
     chain = _get_narrative_chain()
 
+    start = time.monotonic()
     result = await chain.ainvoke({
         "diagnosis_code": extraction.diagnosis_code,
         "treatments": ", ".join(extraction.conservative_treatments_failed),
@@ -57,8 +52,15 @@ async def generate_narrative(
         "justification": extraction.clinical_justification,
         "additional_context": additional_context or "None provided",
     })
+    latency_ms = round((time.monotonic() - start) * 1000)
 
     narrative_text = result.content
-    logger.info("Generated narrative: %d characters", len(narrative_text))
+    logger.info(
+        '{"event": "llm_call", "type": "narrative", "model": "%s", '
+        '"latency_ms": %d, "output_chars": %d}',
+        MODEL_NAME,
+        latency_ms,
+        len(narrative_text),
+    )
 
     return narrative_text, MODEL_NAME, PROMPT_VERSION

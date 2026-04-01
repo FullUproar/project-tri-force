@@ -63,6 +63,14 @@ async def create_narrative(
     await db.commit()
     await db.refresh(narrative)
 
+    from app.core.audit import log_event
+
+    await log_event(
+        db, "narrative", "payer_narrative", narrative.id,
+        metadata={"extraction_id": str(extraction_id), "model": model_used, "prompt_version": prompt_version},
+    )
+    await db.commit()
+
     return NarrativeResponse(
         narrative_id=narrative.id,
         narrative_text=narrative_text,
