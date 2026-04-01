@@ -99,6 +99,7 @@ class ExtractionResult(Base):
     clinical_justification: Mapped[str | None] = mapped_column(Text)
     confidence_score: Mapped[float | None] = mapped_column(Float)
     raw_extraction_json: Mapped[dict | None] = mapped_column(JSONB)
+    outcome: Mapped[str | None] = mapped_column(String(20))  # approved, denied, pending, appealed
 
     ingestion_job: Mapped["IngestionJob"] = relationship(back_populates="extraction_result")
     narratives: Mapped[list["PayerNarrative"]] = relationship(back_populates="extraction_result")
