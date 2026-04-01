@@ -7,6 +7,9 @@ export const metadata: Metadata = {
   description:
     "AI-powered clinical data extraction and prior authorization for orthopaedic ambulatory surgery centers. Upload surgeon notes, robotic reports, or DICOM imaging — get a payer-ready narrative in seconds.",
   metadataBase: new URL("https://cortaloom.ai"),
+  icons: {
+    icon: "/favicon.webp",
+  },
   openGraph: {
     title: "CortaLoom — AI Prior Authorization for Ortho ASCs",
     description:
@@ -14,12 +17,21 @@ export const metadata: Metadata = {
     url: "https://cortaloom.ai",
     siteName: "CortaLoom",
     type: "website",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 400,
+        alt: "CortaLoom.AI — Clinical Data Middleware",
+      },
+    ],
   },
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
     title: "CortaLoom — AI Prior Authorization for Ortho ASCs",
     description:
       "Upload clinical docs, get payer-ready narratives. AI middleware for orthopaedic surgery centers.",
+    images: ["/og-image.png"],
   },
   robots: {
     index: true,
