@@ -28,6 +28,17 @@ def _patch_engine():
 
 _patch_engine()
 
+TEST_API_KEY = "test-key-for-pytest"
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _set_test_api_key():
+    """Set a known API key for tests."""
+    from app.config import settings
+    from pydantic import SecretStr
+
+    object.__setattr__(settings, "api_key", SecretStr(TEST_API_KEY))
+
 
 @pytest.fixture
 def sample_dicom_bytes() -> bytes:

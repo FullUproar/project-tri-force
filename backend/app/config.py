@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     # LLM API Key (Anthropic only)
     anthropic_api_key: SecretStr = SecretStr("")
 
+    # API Authentication
+    api_key: SecretStr = SecretStr("dev-key-change-me")
+
     # Application
     log_level: str = "INFO"
     allowed_origins: list[str] = ["http://localhost:3000"]

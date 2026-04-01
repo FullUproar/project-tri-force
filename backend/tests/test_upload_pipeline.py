@@ -16,6 +16,9 @@ from pydicom.uid import ExplicitVRLittleEndian, generate_uid
 
 from app.main import app
 from app.models.schemas import OrthoPriorAuthData
+from tests.conftest import TEST_API_KEY
+
+AUTH = {"X-API-Key": TEST_API_KEY}
 
 
 def _make_dicom_bytes() -> bytes:
@@ -51,6 +54,27 @@ MOCK_EXTRACTION = OrthoPriorAuthData(
 )
 
 
+# --- Auth Tests ---
+
+
+@pytest.mark.asyncio
+async def test_api_returns_401_without_key():
+    """All /api/v1 endpoints should return 401 without X-API-Key."""
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get("/api/v1/ingest/jobs/00000000-0000-0000-0000-000000000000")
+
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_health_requires_no_auth():
+    """Health endpoint should work without API key."""
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get("/health")
+
+    assert response.status_code == 200
+
+
 # --- DICOM Ingestion Tests ---
 
 
@@ -62,6 +86,7 @@ async def test_upload_dicom_returns_200():
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post(
             "/api/v1/ingest/dicom",
+            headers=AUTH,
             files={"file": ("test.dcm", dicom_bytes, "application/dicom")},
         )
 
@@ -81,12 +106,12 @@ async def test_dicom_upload_strips_phi():
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post(
             "/api/v1/ingest/dicom",
+            headers=AUTH,
             files={"file": ("test.dcm", dicom_bytes, "application/dicom")},
         )
 
     data = response.json()
     metadata = data["metadata"]
-    # PHI fields should NOT appear in metadata
     assert "PatientName" not in metadata
     assert "PatientID" not in metadata
     assert "PatientBirthDate" not in metadata
@@ -98,6 +123,7 @@ async def test_upload_invalid_dicom_returns_400():
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post(
             "/api/v1/ingest/dicom",
+            headers=AUTH,
             files={"file": ("fake.dcm", b"not a dicom file", "application/dicom")},
         )
 
@@ -110,6 +136,7 @@ async def test_upload_wrong_extension_returns_400():
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post(
             "/api/v1/ingest/dicom",
+            headers=AUTH,
             files={"file": ("note.txt", b"some text", "text/plain")},
         )
 
@@ -126,6 +153,7 @@ async def test_upload_clinical_note_returns_processing():
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.post(
                 "/api/v1/ingest/clinical-note",
+                headers=AUTH,
                 files={"file": ("note.txt", b"Patient has knee pain. Failed NSAIDs.", "text/plain")},
             )
 
@@ -144,11 +172,11 @@ async def test_upload_pdf_returns_processing():
     with open("tests/fixtures/test_report.pdf", "rb") as f:
         pdf_bytes = f.read()
 
-    # Mock the background task since it needs LLM
     with patch("app.api.v1.ingest._process_text_ingestion", new_callable=AsyncMock):
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.post(
                 "/api/v1/ingest/robotic-report",
+                headers=AUTH,
                 files={"file": ("report.pdf", pdf_bytes, "application/pdf")},
             )
 
@@ -162,6 +190,7 @@ async def test_upload_non_pdf_to_robotic_returns_400():
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post(
             "/api/v1/ingest/robotic-report",
+            headers=AUTH,
             files={"file": ("report.txt", b"not a pdf", "text/plain")},
         )
 
@@ -176,7 +205,8 @@ async def test_job_not_found_returns_404():
     """Requesting a non-existent job should return 404."""
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get(
-            "/api/v1/ingest/jobs/00000000-0000-0000-0000-000000000000"
+            "/api/v1/ingest/jobs/00000000-0000-0000-0000-000000000000",
+            headers=AUTH,
         )
 
     assert response.status_code == 404
