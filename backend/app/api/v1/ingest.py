@@ -1,5 +1,4 @@
 import asyncio
-import json
 import uuid
 from collections.abc import AsyncGenerator
 
@@ -29,9 +28,6 @@ from app.services.llm.extraction import extract_prior_auth_data
 
 router = APIRouter()
 
-# In-memory status tracking for SSE (replace with Redis in Phase 2)
-_job_status: dict[str, ProcessingStatusEvent] = {}
-
 
 def _validate_file_size(file_bytes: bytes):
     if len(file_bytes) > MAX_FILE_SIZE:
@@ -41,53 +37,50 @@ def _validate_file_size(file_bytes: bytes):
         )
 
 
-def _update_status(job_id: str, status: str, step: str, progress: float):
-    _job_status[job_id] = ProcessingStatusEvent(status=status, step=step, progress=progress)
+async def _process_text_ingestion(job_id: uuid.UUID, text: str):
+    """Background task: scrub PHI, run LLM extraction, store results.
 
+    Creates its own DB session — does NOT reuse the request session,
+    which closes after the response is sent.
+    """
+    from app.core.db import async_session
 
-async def _process_text_ingestion(
-    job_id: uuid.UUID,
-    text: str,
-    db: AsyncSession,
-):
-    """Background task: scrub PHI, run LLM extraction, store results."""
-    job_id_str = str(job_id)
-    try:
-        _update_status(job_id_str, "processing", "phi_scrubbing", 0.2)
-        scrubbed = scrub_text(text)
+    async with async_session() as db:
+        try:
+            job = await db.get(IngestionJob, job_id)
+            if job:
+                job.status = "processing"
+                await db.commit()
 
-        _update_status(job_id_str, "processing", "llm_extraction", 0.5)
-        extraction = await extract_prior_auth_data(scrubbed)
+            scrubbed = scrub_text(text)
+            extraction = await extract_prior_auth_data(scrubbed)
 
-        _update_status(job_id_str, "processing", "saving_results", 0.8)
+            result = ExtractionResult(
+                ingestion_job_id=job_id,
+                diagnosis_code=extraction.diagnosis_code,
+                conservative_treatments_failed=extraction.conservative_treatments_failed,
+                implant_type_requested=extraction.implant_type_requested,
+                robotic_assistance_required=extraction.robotic_assistance_required,
+                clinical_justification=extraction.clinical_justification,
+                confidence_score=extraction.confidence_score,
+                raw_extraction_json=extraction.model_dump(),
+            )
+            db.add(result)
 
-        result = ExtractionResult(
-            ingestion_job_id=job_id,
-            diagnosis_code=extraction.diagnosis_code,
-            conservative_treatments_failed=extraction.conservative_treatments_failed,
-            implant_type_requested=extraction.implant_type_requested,
-            robotic_assistance_required=extraction.robotic_assistance_required,
-            clinical_justification=extraction.clinical_justification,
-            confidence_score=extraction.confidence_score,
-            raw_extraction_json=extraction.model_dump(),
-        )
-        db.add(result)
-
-        job = await db.get(IngestionJob, job_id)
-        job.status = "completed"
-        await db.commit()
-
-        _update_status(job_id_str, "completed", "done", 1.0)
-        logger.info("Job %s completed successfully", job_id_str)
-
-    except Exception as e:
-        logger.error("Job %s failed: %s", job_id_str, str(e))
-        job = await db.get(IngestionJob, job_id)
-        if job:
-            job.status = "failed"
-            job.error_message = str(e)
+            job = await db.get(IngestionJob, job_id)
+            job.status = "completed"
             await db.commit()
-        _update_status(job_id_str, "failed", "error", 0.0)
+
+            logger.info("Job %s completed successfully", str(job_id))
+
+        except Exception as e:
+            logger.error("Job %s failed: %s", str(job_id), str(e))
+            async with async_session() as err_db:
+                job = await err_db.get(IngestionJob, job_id)
+                if job:
+                    job.status = "failed"
+                    job.error_message = str(e)
+                    await err_db.commit()
 
 
 # --- Endpoints ---
@@ -154,7 +147,7 @@ async def _ingest_note(
     await db.commit()
     await db.refresh(job)
 
-    background_tasks.add_task(_process_text_ingestion, job.id, text, db)
+    background_tasks.add_task(_process_text_ingestion, job.id, text)
 
     return IngestionResponse(
         job_id=job.id,
@@ -221,7 +214,7 @@ async def ingest_robotic_report(
     await db.commit()
     await db.refresh(job)
 
-    background_tasks.add_task(_process_text_ingestion, job.id, text, db)
+    background_tasks.add_task(_process_text_ingestion, job.id, text)
 
     return IngestionResponse(
         job_id=job.id,
@@ -323,7 +316,7 @@ async def retry_job(
     job.error_message = None
     await db.commit()
 
-    background_tasks.add_task(_process_text_ingestion, job.id, text, db)
+    background_tasks.add_task(_process_text_ingestion, job.id, text)
 
     return IngestionResponse(
         job_id=job.id,
@@ -334,20 +327,42 @@ async def retry_job(
 
 @router.get("/jobs/{job_id}/status")
 async def job_status_sse(job_id: uuid.UUID):
-    """SSE endpoint for real-time job processing status."""
+    """SSE endpoint for real-time job processing status. Polls DB — survives deploys."""
+    from app.core.db import async_session
 
     async def event_stream() -> AsyncGenerator[str, None]:
-        job_id_str = str(job_id)
         last_status = None
 
-        for _ in range(120):  # 2 minute timeout (120 * 1s)
-            current = _job_status.get(job_id_str)
-            if current and current != last_status:
-                yield f"event: status\ndata: {current.model_dump_json()}\n\n"
-                last_status = current
-                if current.status in ("completed", "failed"):
-                    return
-            await asyncio.sleep(1)
+        for _ in range(120):  # 2 minute timeout (120 * 2s)
+            async with async_session() as db:
+                job = await db.get(IngestionJob, job_id)
+
+            if job:
+                current_status = job.status
+                if current_status != last_status:
+                    progress = {
+                        "pending": 0.1,
+                        "processing": 0.5,
+                        "completed": 1.0,
+                        "failed": 0.0,
+                    }.get(current_status, 0.0)
+                    step = {
+                        "pending": "queued",
+                        "processing": "extracting",
+                        "completed": "done",
+                        "failed": "error",
+                    }.get(current_status, current_status)
+
+                    event = ProcessingStatusEvent(
+                        status=current_status, step=step, progress=progress
+                    )
+                    yield f"event: status\ndata: {event.model_dump_json()}\n\n"
+                    last_status = current_status
+
+                    if current_status in ("completed", "failed"):
+                        return
+
+            await asyncio.sleep(2)
 
     return StreamingResponse(
         event_stream(),
