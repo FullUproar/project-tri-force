@@ -1,5 +1,5 @@
+from langchain_anthropic import ChatAnthropic
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI
 
 from app.config import settings
 from app.core.logging import logger
@@ -7,15 +7,14 @@ from app.models.schemas import OrthoPriorAuthData
 from app.services.llm.prompts import NARRATIVE_SYSTEM_PROMPT
 
 PROMPT_VERSION = "v1.0"
-MODEL_NAME = "gpt-4.5-preview"
+MODEL_NAME = "claude-sonnet-4-20250514"
 
 
 def _get_narrative_chain():
-    llm = ChatOpenAI(
+    llm = ChatAnthropic(
         model=MODEL_NAME,
         temperature=0.3,
-        api_key=settings.openai_api_key.get_secret_value(),
-        model_kwargs={"store": False},  # Zero retention
+        api_key=settings.anthropic_api_key.get_secret_value(),
     )
 
     prompt = ChatPromptTemplate.from_messages([

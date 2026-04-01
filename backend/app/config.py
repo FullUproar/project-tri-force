@@ -15,9 +15,8 @@ class Settings(BaseSettings):
     minio_bucket: str = "triforce-uploads"
     minio_use_ssl: bool = False
 
-    # LLM API Keys
+    # LLM API Key (Anthropic only)
     anthropic_api_key: SecretStr = SecretStr("")
-    openai_api_key: SecretStr = SecretStr("")
 
     # Application
     log_level: str = "INFO"
