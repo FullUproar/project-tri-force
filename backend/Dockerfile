@@ -2,11 +2,12 @@ FROM python:3.13-slim
 
 WORKDIR /app
 
-COPY pyproject.toml .
+# Copy everything first (needed for editable install)
+COPY . .
+
+# Install deps and spaCy model during build (baked into image)
 RUN pip install --no-cache-dir -e "." && \
     python -m spacy download en_core_web_lg
-
-COPY . .
 
 EXPOSE 8000
 
