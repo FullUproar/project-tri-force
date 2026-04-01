@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     stripe_webhook_secret: SecretStr = SecretStr("")
     stripe_price_id: str = ""  # Price ID for the $299/month ASC plan
 
+    # Sentry
+    sentry_dsn: str = ""
+
     # Data Retention
     data_retention_days: int = 90  # Auto-purge completed jobs older than this
 

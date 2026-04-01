@@ -14,6 +14,18 @@ from app.dependencies import get_db
 
 setup_logging()
 
+# Sentry error tracking
+if settings.sentry_dsn:
+    import sentry_sdk
+
+    sentry_sdk.init(
+        dsn=settings.sentry_dsn,
+        traces_sample_rate=0.1,
+        send_default_pii=False,  # HIPAA — never send PHI to Sentry
+        environment="production",
+    )
+    logger.info("Sentry initialized")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

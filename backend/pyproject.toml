@@ -23,6 +23,7 @@ dependencies = [
     "httpx",
     "reportlab",
     "stripe",
+    "sentry-sdk[fastapi]",
 ]
 
 [project.optional-dependencies]
