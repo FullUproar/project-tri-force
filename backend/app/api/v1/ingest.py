@@ -324,6 +324,7 @@ async def get_job(job_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
                 robotic_assistance_required=ext.robotic_assistance_required,
                 clinical_justification=ext.clinical_justification,
                 confidence_score=ext.confidence_score,
+                outcome=ext.outcome,
             )
 
     return JobStatusResponse(

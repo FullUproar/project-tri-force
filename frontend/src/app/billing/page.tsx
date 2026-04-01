@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { CreditCard, CheckCircle2, AlertCircle, ExternalLink } from "lucide-react";
+import { NavBar } from "@/components/nav-bar";
 import { cn } from "@/lib/utils";
 
 const API_BASE = "/api/proxy/api/v1";
@@ -67,17 +68,7 @@ export default function BillingPage() {
 
   return (
     <div className="min-h-screen bg-[var(--background)]">
-      <header className="border-b border-[var(--border)] px-6 py-4">
-        <div className="max-w-3xl mx-auto flex items-center gap-3">
-          <img src="/logo-globe.webp" alt="CortaLoom" className="w-9 h-9" />
-          <div>
-            <h1 className="text-xl font-bold">Billing</h1>
-            <p className="text-xs text-[var(--muted-foreground)]">
-              Manage your CortaLoom subscription
-            </p>
-          </div>
-        </div>
-      </header>
+      <NavBar />
 
       <main className="max-w-3xl mx-auto p-6 space-y-6">
         {/* Current Status */}

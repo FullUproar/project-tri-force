@@ -61,6 +61,7 @@ class ExtractionResultResponse(BaseModel):
     robotic_assistance_required: bool | None
     clinical_justification: str | None
     confidence_score: float | None
+    outcome: str | None
 
 
 class ClinicalNoteRequest(BaseModel):
