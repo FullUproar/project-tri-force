@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.router import api_v1_router
 from app.core.logging import logger, request_id_var, setup_logging
-from app.core.security import add_cors_middleware
+from app.core.security import SecurityHeadersMiddleware, add_cors_middleware
 from app.dependencies import get_db
 
 setup_logging()
@@ -19,6 +19,7 @@ app = FastAPI(
 )
 
 add_cors_middleware(app)
+app.add_middleware(SecurityHeadersMiddleware)
 
 
 @app.middleware("http")

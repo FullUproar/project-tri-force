@@ -114,5 +114,6 @@ export async function exportNarrativePdf(extractionId: string): Promise<void> {
 }
 
 export function getSSEUrl(jobId: string): string {
-  return `${API_URL}/api/v1/ingest/jobs/${jobId}/status`;
+  const params = API_KEY ? `?api_key=${encodeURIComponent(API_KEY)}` : "";
+  return `${API_URL}/api/v1/ingest/jobs/${jobId}/status${params}`;
 }
