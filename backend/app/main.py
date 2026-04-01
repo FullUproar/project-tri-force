@@ -1,11 +1,12 @@
+import uuid as uuid_mod
 from datetime import datetime, timezone
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, Request
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.router import api_v1_router
-from app.core.logging import setup_logging
+from app.core.logging import logger, request_id_var, setup_logging
 from app.core.security import add_cors_middleware
 from app.dependencies import get_db
 
@@ -18,6 +19,17 @@ app = FastAPI(
 )
 
 add_cors_middleware(app)
+
+
+@app.middleware("http")
+async def add_request_id(request: Request, call_next):
+    rid = request.headers.get("X-Request-ID", str(uuid_mod.uuid4()))
+    request_id_var.set(rid)
+    response = await call_next(request)
+    response.headers["X-Request-ID"] = rid
+    return response
+
+
 app.include_router(api_v1_router, prefix="/api/v1")
 
 
