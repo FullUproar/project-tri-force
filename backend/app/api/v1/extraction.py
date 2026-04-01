@@ -4,6 +4,7 @@ from io import BytesIO
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
+from sqlalchemy import select
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import inch
@@ -24,7 +25,14 @@ async def create_narrative(
     db: AsyncSession = Depends(get_db),
 ):
     """Generate a payer submission narrative from an extraction result."""
-    ext = await db.get(ExtractionResult, extraction_id)
+    from sqlalchemy.orm import selectinload
+
+    result = await db.execute(
+        select(ExtractionResult)
+        .options(selectinload(ExtractionResult.ingestion_job))
+        .where(ExtractionResult.id == extraction_id)
+    )
+    ext = result.scalar_one_or_none()
     if not ext:
         raise HTTPException(status_code=404, detail="Extraction result not found")
 
@@ -38,9 +46,8 @@ async def create_narrative(
     )
 
     additional_context = ""
-    job = ext.ingestion_job
-    if job and job.metadata_json:
-        additional_context = f"Imaging metadata: {job.metadata_json}"
+    if ext.ingestion_job and ext.ingestion_job.metadata_json:
+        additional_context = f"Imaging metadata: {ext.ingestion_job.metadata_json}"
 
     narrative_text, model_used, prompt_version = await generate_narrative(
         extraction_data, additional_context
