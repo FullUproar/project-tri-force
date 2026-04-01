@@ -1,14 +1,10 @@
-FROM python:3.11-slim
+FROM python:3.13-slim
 
 WORKDIR /app
 
-RUN pip install --no-cache-dir uv
-
 COPY pyproject.toml .
-RUN uv pip install --system -e ".[dev]"
-
-# Download spaCy model for Presidio
-RUN python -m spacy download en_core_web_lg
+RUN pip install --no-cache-dir -e "." && \
+    python -m spacy download en_core_web_lg
 
 COPY . .
 
