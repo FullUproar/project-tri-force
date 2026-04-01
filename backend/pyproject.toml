@@ -2,7 +2,7 @@
 name = "triforce-backend"
 version = "0.1.0"
 description = "Tri-Force: Universal B2B AI Data Middleware for Clinical Data Normalization"
-requires-python = ">=3.11,<3.13"
+requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115",
     "uvicorn[standard]",
@@ -42,6 +42,9 @@ select = ["E", "F", "I", "N", "W", "UP"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
 
 [build-system]
 requires = ["hatchling"]
