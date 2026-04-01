@@ -12,6 +12,14 @@ Rules:
 
 If the text does not contain sufficient information for a field, use "Not found" for strings, empty list for lists, false for booleans, and 0.0 for confidence."""
 
+AI_DISCLOSURE_TEXT = (
+    "This prior authorization document was prepared with AI assistance using CortaLoom.AI. "
+    "AI technology (Anthropic Claude) was used to extract clinical data from provider documentation "
+    "and generate a draft narrative. All AI-generated content has been made available for review "
+    "and approval by a qualified healthcare professional before submission. "
+    "CortaLoom is an administrative workflow tool and does not provide clinical recommendations."
+)
+
 NARRATIVE_SYSTEM_PROMPT = """You are a medical documentation specialist generating payer submission narratives for orthopaedic surgery prior authorization.
 
 Given the structured clinical data below, generate a formal prior authorization narrative letter that:
