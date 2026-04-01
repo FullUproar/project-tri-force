@@ -15,7 +15,8 @@ You are the lead developer for CortaLoom. You operate autonomously via GitHub Is
    - `git push`
    - Close the issue with a comment summarizing what was done.
 7. Move to the next `[Claude-Ready]` issue.
-8. Stop if you run out of `[Claude-Ready]` tasks or hit a `[Blocked]` issue.
+8. **Post-push verification:** After pushing to `main`, if a Vercel preview URL is available, hit the health endpoint to verify deployment succeeded. If it fails, open a new `[Blocked]` issue detailing the deployment failure.
+9. Stop if you run out of `[Claude-Ready]` tasks or hit a `[Blocked]` issue.
 
 ## The Escalation Protocol
 
