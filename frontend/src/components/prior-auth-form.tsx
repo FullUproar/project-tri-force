@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { cn } from "@/lib/utils";
-import type { ExtractionResult } from "@/lib/api";
+import { updateOutcome, type ExtractionResult, type PriorAuthOutcome } from "@/lib/api";
 
 const schema = z.object({
   diagnosis_code: z.string().min(1, "Required"),
@@ -119,6 +119,35 @@ export function PriorAuthForm({ extraction, onGenerateNarrative, isGenerating }:
               rows={4}
               className="w-full px-3 py-2 border border-[var(--border)] rounded-md bg-[var(--background)] text-sm resize-y"
             />
+          </div>
+
+          {/* Outcome Tracker */}
+          <div>
+            <label className="block text-sm font-medium mb-2">Prior Auth Outcome</label>
+            <div className="flex gap-2">
+              {(["pending", "approved", "denied", "appealed"] as PriorAuthOutcome[]).map((o) => {
+                const colors: Record<string, string> = {
+                  pending: "border-yellow-400 bg-yellow-50 text-yellow-700",
+                  approved: "border-green-400 bg-green-50 text-green-700",
+                  denied: "border-red-400 bg-red-50 text-red-700",
+                  appealed: "border-blue-400 bg-blue-50 text-blue-700",
+                };
+                const isActive = extraction.outcome === o;
+                return (
+                  <button
+                    key={o}
+                    type="button"
+                    onClick={() => updateOutcome(extraction.id, o)}
+                    className={cn(
+                      "px-3 py-1.5 rounded-md text-xs font-medium border transition-all capitalize",
+                      isActive ? colors[o] + " ring-2 ring-offset-1" : "border-[var(--border)] text-[var(--muted-foreground)] hover:bg-[var(--muted)]"
+                    )}
+                  >
+                    {o}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           <button

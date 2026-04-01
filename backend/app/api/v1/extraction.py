@@ -11,6 +11,8 @@ from reportlab.lib.units import inch
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from pydantic import BaseModel
+
 from app.dependencies import get_db
 from app.models.database import ExtractionResult, PayerNarrative
 from app.models.schemas import NarrativeResponse, OrthoPriorAuthData
@@ -85,6 +87,30 @@ async def create_narrative(
         model_used=model_used,
         prompt_version=prompt_version,
     )
+
+
+class UpdateOutcomeRequest(BaseModel):
+    outcome: str  # approved, denied, pending, appealed
+
+
+@router.patch("/extraction/{extraction_id}/outcome")
+async def update_outcome(
+    extraction_id: uuid.UUID,
+    body: UpdateOutcomeRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Update the prior auth outcome for tracking."""
+    valid_outcomes = {"approved", "denied", "pending", "appealed"}
+    if body.outcome not in valid_outcomes:
+        raise HTTPException(status_code=400, detail=f"Outcome must be one of: {valid_outcomes}")
+
+    ext = await db.get(ExtractionResult, extraction_id)
+    if not ext:
+        raise HTTPException(status_code=404, detail="Extraction result not found")
+
+    ext.outcome = body.outcome
+    await db.commit()
+    return {"status": "ok", "extraction_id": str(extraction_id), "outcome": body.outcome}
 
 
 @router.get("/extraction/{extraction_id}/export/pdf")

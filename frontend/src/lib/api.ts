@@ -18,6 +18,18 @@ export interface ExtractionResult {
   robotic_assistance_required: boolean | null;
   clinical_justification: string | null;
   confidence_score: number | null;
+  outcome: string | null;
+}
+
+export type PriorAuthOutcome = "pending" | "approved" | "denied" | "appealed";
+
+export async function updateOutcome(extractionId: string, outcome: PriorAuthOutcome): Promise<void> {
+  const res = await fetch(`${API_BASE}/extraction/${extractionId}/outcome`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ outcome }),
+  });
+  if (!res.ok) throw new Error(await res.text());
 }
 
 export interface JobStatusResponse {
