@@ -27,6 +27,8 @@ class Organization(Base):
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     baa_signed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    stripe_customer_id: Mapped[str | None] = mapped_column(String(100))
+    subscription_status: Mapped[str | None] = mapped_column(String(20))  # active, past_due, canceled, trialing
 
     api_keys: Mapped[list["ApiKey"]] = relationship(back_populates="organization")
 

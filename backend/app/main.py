@@ -102,6 +102,15 @@ from app.api.v1.share import router as share_router
 app.include_router(share_router, prefix="/api/v1", tags=["share"])
 
 
+# Stripe webhook (no auth — Stripe signs with webhook secret)
+from app.api.v1.billing import handle_stripe_webhook
+
+
+@app.post("/api/v1/billing/webhook")
+async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
+    return await handle_stripe_webhook(request, db)
+
+
 @app.get("/health")
 async def health(db: AsyncSession = Depends(get_db)):
     import time

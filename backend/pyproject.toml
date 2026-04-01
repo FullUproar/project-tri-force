@@ -22,6 +22,7 @@ dependencies = [
     "boto3",
     "httpx",
     "reportlab",
+    "stripe",
 ]
 
 [project.optional-dependencies]
