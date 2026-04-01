@@ -3,8 +3,30 @@ import uuid
 
 import pydicom
 import pytest
+import pytest_asyncio
 from pydicom.dataset import Dataset, FileDataset
 from pydicom.uid import ExplicitVRLittleEndian, generate_uid
+
+
+def _patch_engine():
+    """Patch the DB engine to use NullPool before any test imports the app."""
+    from sqlalchemy.pool import NullPool
+    from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+
+    import app.core.db as db_module
+    from app.config import settings
+
+    db_module.engine = create_async_engine(
+        settings.database_url,
+        echo=False,
+        poolclass=NullPool,
+    )
+    db_module.async_session = async_sessionmaker(
+        db_module.engine, class_=AsyncSession, expire_on_commit=False
+    )
+
+
+_patch_engine()
 
 
 @pytest.fixture
