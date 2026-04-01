@@ -1,26 +1,74 @@
-from fastapi import HTTPException, Request, Security, status
+import hashlib
+import uuid
+
+from fastapi import Depends, HTTPException, Request, Security, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import APIKeyHeader
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 
 from app.config import settings
+from app.dependencies import get_db
+from app.models.database import ApiKey, Organization
 
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 
-async def verify_api_key(
+def hash_api_key(key: str) -> str:
+    """SHA-256 hash of an API key for storage."""
+    return hashlib.sha256(key.encode()).hexdigest()
+
+
+async def get_current_tenant(
     request: Request,
+    db: AsyncSession = Depends(get_db),
     api_key: str = Security(api_key_header),
-):
-    """Validate API key from header or query parameter (for SSE EventSource)."""
+) -> Organization:
+    """Validate API key and return the associated tenant Organization.
+
+    Accepts key via X-API-Key header or api_key query param (for SSE).
+    Falls back to legacy TF_API_KEY for backwards compatibility.
+    """
     key = api_key or request.query_params.get("api_key")
-    if not key or key != settings.api_key.get_secret_value():
+    if not key:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or missing API key",
+            detail="Missing API key",
         )
-    return key
+
+    # Check DB-backed API keys first
+    key_hash = hash_api_key(key)
+    result = await db.execute(
+        select(ApiKey)
+        .options(selectinload(ApiKey.organization))
+        .where(ApiKey.key_hash == key_hash)
+        .where(ApiKey.is_active == True)  # noqa: E712
+        .limit(1)
+    )
+    db_key = result.scalar_one_or_none()
+
+    if db_key and db_key.organization and db_key.organization.is_active:
+        return db_key.organization
+
+    # Fallback: legacy single API key (no tenant — returns default org)
+    if key == settings.api_key.get_secret_value():
+        # Load or create default org
+        result = await db.execute(
+            select(Organization).where(
+                Organization.id == uuid.UUID("00000000-0000-0000-0000-000000000001")
+            )
+        )
+        org = result.scalar_one_or_none()
+        if org:
+            return org
+
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid API key",
+    )
 
 
 def add_cors_middleware(app):

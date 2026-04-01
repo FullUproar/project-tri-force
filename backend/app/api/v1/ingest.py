@@ -25,6 +25,8 @@ from app.services.dicom_service import parse_dicom
 from app.services.pdf_parser import extract_text_from_pdf
 from app.services.phi_scrubber import scrub_text, scrub_text_with_stats
 from app.core.audit import log_event, log_event_standalone
+from app.core.security import get_current_tenant
+from app.models.database import Organization
 from app.services.llm.extraction import extract_prior_auth_data
 
 router = APIRouter()
@@ -69,6 +71,7 @@ async def _process_text_ingestion(job_id: uuid.UUID, text: str):
             extraction = await extract_prior_auth_data(scrubbed)
 
             result = ExtractionResult(
+                tenant_id=job.tenant_id if job else None,
                 ingestion_job_id=job_id,
                 diagnosis_code=extraction.diagnosis_code,
                 conservative_treatments_failed=extraction.conservative_treatments_failed,
@@ -115,6 +118,7 @@ async def ingest_dicom(
     request: Request,
     file: UploadFile,
     db: AsyncSession = Depends(get_db),
+    tenant: Organization = Depends(get_current_tenant),
 ):
     """Ingest a DICOM file: extract metadata, strip PHI, store de-identified copy."""
     if not file.filename or not file.filename.lower().endswith(".dcm"):
@@ -131,6 +135,7 @@ async def ingest_dicom(
     file_key = storage.upload_file(deidentified_bytes, "dicom", "dcm")
 
     job = IngestionJob(
+        tenant_id=tenant.id,
         source_type="dicom",
         status="completed",
         file_key=file_key,
@@ -163,6 +168,7 @@ async def _ingest_note(
     filename: str,
     background_tasks: BackgroundTasks,
     db: AsyncSession,
+    tenant_id: uuid.UUID | None = None,
 ) -> IngestionResponse:
     """Shared logic for clinical note ingestion."""
     if not text or not text.strip():
@@ -173,6 +179,7 @@ async def _ingest_note(
     file_key = storage.upload_file(text.encode("utf-8"), "clinical_note", "txt")
 
     job = IngestionJob(
+        tenant_id=tenant_id,
         source_type="clinical_note",
         status="pending",
         file_key=file_key,
@@ -197,13 +204,14 @@ async def _ingest_note(
 async def ingest_clinical_note(
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
+    tenant: Organization = Depends(get_current_tenant),
     file: UploadFile | None = None,
 ):
     """Ingest a clinical note as text file upload."""
     if not file:
         raise HTTPException(status_code=400, detail="Provide a text file")
     text = (await file.read()).decode("utf-8")
-    return await _ingest_note(text, file.filename or "upload.txt", background_tasks, db)
+    return await _ingest_note(text, file.filename or "upload.txt", background_tasks, db, tenant.id)
 
 
 @router.post("/clinical-note/text", response_model=IngestionResponse)
@@ -211,9 +219,10 @@ async def ingest_clinical_note_text(
     body: ClinicalNoteRequest,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
+    tenant: Organization = Depends(get_current_tenant),
 ):
     """Ingest a clinical note as JSON text body."""
-    return await _ingest_note(body.text, "inline_note.txt", background_tasks, db)
+    return await _ingest_note(body.text, "inline_note.txt", background_tasks, db, tenant.id)
 
 
 @router.post("/robotic-report", response_model=IngestionResponse)
@@ -221,6 +230,7 @@ async def ingest_robotic_report(
     file: UploadFile,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
+    tenant: Organization = Depends(get_current_tenant),
 ):
     """Ingest a robotic report PDF: extract text, scrub PHI, run LLM extraction."""
     if not file.filename or not file.filename.lower().endswith(".pdf"):
@@ -240,6 +250,7 @@ async def ingest_robotic_report(
     file_key = storage.upload_file(file_bytes, "robotic_report", "pdf")
 
     job = IngestionJob(
+        tenant_id=tenant.id,
         source_type="robotic_report",
         status="pending",
         file_key=file_key,
@@ -268,10 +279,12 @@ async def list_jobs(
     limit: int = 20,
     offset: int = 0,
     db: AsyncSession = Depends(get_db),
+    tenant: Organization = Depends(get_current_tenant),
 ):
-    """List all ingestion jobs, most recent first."""
+    """List ingestion jobs for the current tenant, most recent first."""
     result = await db.execute(
         select(IngestionJob)
+        .where(IngestionJob.tenant_id == tenant.id)
         .order_by(IngestionJob.created_at.desc())
         .limit(limit)
         .offset(offset)

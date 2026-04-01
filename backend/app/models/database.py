@@ -12,17 +12,60 @@ class Base(DeclarativeBase):
     pass
 
 
+# --- Multi-tenancy ---
+
+
+class Organization(Base):
+    __tablename__ = "organizations"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    name: Mapped[str] = mapped_column(String(200))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    api_keys: Mapped[list["ApiKey"]] = relationship(back_populates="organization")
+
+
+class ApiKey(Base):
+    __tablename__ = "api_keys"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("organizations.id")
+    )
+    key_hash: Mapped[str] = mapped_column(String(64))  # SHA-256 of the API key
+    name: Mapped[str] = mapped_column(String(100))  # e.g., "Production", "Staging"
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    organization: Mapped["Organization"] = relationship(back_populates="api_keys")
+
+
+# --- Core Data Models ---
+
+
 class IngestionJob(Base):
     __tablename__ = "ingestion_jobs"
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
+    tenant_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("organizations.id"), index=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
-    source_type: Mapped[str] = mapped_column(String(20))  # dicom, clinical_note, robotic_report
-    status: Mapped[str] = mapped_column(String(20), default="pending")  # pending/processing/completed/failed
+    source_type: Mapped[str] = mapped_column(String(20))
+    status: Mapped[str] = mapped_column(String(20), default="pending")
     file_key: Mapped[str | None] = mapped_column(String(500))
     original_filename: Mapped[str | None] = mapped_column(String(255))
     file_size_bytes: Mapped[int | None] = mapped_column(BigInteger)
@@ -39,6 +82,9 @@ class ExtractionResult(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    tenant_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("organizations.id"), index=True
     )
     ingestion_job_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("ingestion_jobs.id")
@@ -64,6 +110,9 @@ class PayerNarrative(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
+    tenant_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("organizations.id"), index=True
+    )
     extraction_result_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("extraction_results.id")
     )
@@ -83,6 +132,9 @@ class ClinicalNoteEmbedding(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
+    tenant_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("organizations.id"), index=True
+    )
     ingestion_job_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("ingestion_jobs.id")
     )
@@ -97,10 +149,13 @@ class AuditLog(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
+    tenant_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("organizations.id"), index=True
+    )
     timestamp: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
-    action: Mapped[str] = mapped_column(String(50))  # ingest, extract, narrative, export
+    action: Mapped[str] = mapped_column(String(50))
     resource_type: Mapped[str | None] = mapped_column(String(30))
     resource_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     request_id: Mapped[str | None] = mapped_column(String(36))
