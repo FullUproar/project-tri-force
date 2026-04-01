@@ -133,6 +133,10 @@ async def _ingest_note(
     db: AsyncSession,
 ) -> IngestionResponse:
     """Shared logic for clinical note ingestion."""
+    if not text or not text.strip():
+        raise HTTPException(status_code=400, detail="Clinical note text cannot be empty")
+    if len(text.strip()) < 20:
+        raise HTTPException(status_code=400, detail="Clinical note text is too short to extract meaningful data")
     size = len(text.encode("utf-8"))
     file_key = storage.upload_file(text.encode("utf-8"), "clinical_note", "txt")
 

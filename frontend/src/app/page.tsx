@@ -65,7 +65,20 @@ export default function Dashboard() {
               ASC Prior Authorization Agent
             </p>
           </div>
-          <span className="text-xs px-2 py-1 bg-[var(--muted)] rounded">v0.1.0</span>
+          <div className="flex items-center gap-3">
+            {activeJobId && (
+              <button
+                onClick={() => {
+                  setActiveJobId(null);
+                  setNarrative(null);
+                }}
+                className="text-xs px-3 py-1 rounded border border-[var(--border)] hover:bg-[var(--muted)] transition-colors"
+              >
+                New Case
+              </button>
+            )}
+            <span className="text-xs px-2 py-1 bg-[var(--muted)] rounded">v0.1.0</span>
+          </div>
         </div>
       </header>
 
