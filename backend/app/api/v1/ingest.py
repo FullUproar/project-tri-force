@@ -8,8 +8,11 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.core.logging import logger
 from app.dependencies import get_db
+
+MAX_FILE_SIZE = settings.max_upload_size_mb * 1024 * 1024
 from app.models.database import ExtractionResult, IngestionJob
 from app.models.schemas import (
     ClinicalNoteRequest,
@@ -28,6 +31,14 @@ router = APIRouter()
 
 # In-memory status tracking for SSE (replace with Redis in Phase 2)
 _job_status: dict[str, ProcessingStatusEvent] = {}
+
+
+def _validate_file_size(file_bytes: bytes):
+    if len(file_bytes) > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File too large. Maximum size is {settings.max_upload_size_mb}MB.",
+        )
 
 
 def _update_status(job_id: str, status: str, step: str, progress: float):
@@ -92,6 +103,7 @@ async def ingest_dicom(
         raise HTTPException(status_code=400, detail="File must be a .dcm DICOM file")
 
     file_bytes = await file.read()
+    _validate_file_size(file_bytes)
 
     try:
         metadata, deidentified_bytes = parse_dicom(file_bytes)
@@ -174,6 +186,7 @@ async def ingest_robotic_report(
         raise HTTPException(status_code=400, detail="File must be a .pdf file")
 
     file_bytes = await file.read()
+    _validate_file_size(file_bytes)
 
     try:
         text = extract_text_from_pdf(file_bytes)
