@@ -90,14 +90,50 @@ At no point does raw (pre-scrub) clinical text enter the database. The only raw 
 
 **Known gap**: Clinical note .txt files stored in R2 contain the original uploaded text (pre-scrub). This is intentional for retry functionality — the scrubber runs on re-download. R2 encryption at rest protects these files. Phase 2 will add the option to store only scrubbed versions.
 
+## Encryption Key Management
+
+### Data at Rest
+
+| Storage | Encryption | Key Owner | Key Rotation |
+|---|---|---|---|
+| Neon PostgreSQL | AES-256 | Neon (managed) | Automatic, transparent to application |
+| Cloudflare R2 | AES-256 | Cloudflare (managed) | Automatic, transparent to application |
+
+CortaLoom does **not** manage encryption keys directly. Both Neon and Cloudflare R2 use provider-managed encryption where the cloud provider handles key generation, rotation, and storage in hardware security modules (HSMs).
+
+**Decision**: Provider-managed encryption is appropriate for Phase 1. Customer-managed keys (BYOK) using AWS KMS or Cloudflare KMS can be added in Phase 2 if enterprise customers or BAA terms require it.
+
+### Data in Transit
+
+All connections use TLS 1.2+ with certificates managed by the respective providers (Vercel, Railway, Neon, Cloudflare). No application-level certificate management is required.
+
+### Application-Level Encryption
+
+The `raw_extraction_json` field in `extraction_results` stores the full LLM output. This field is protected by:
+1. Database encryption at rest (Neon AES-256)
+2. PHI scrubbing before LLM processing (no raw PHI should reach this field)
+3. Tenant isolation (queries scoped by tenant_id)
+
+**Decision**: Application-level field encryption (e.g., pgcrypto) is not implemented in Phase 1. The risk is mitigated by the PHI scrubber running before any data reaches the LLM or database. If a BAA audit requires field-level encryption, add pgcrypto with a per-tenant encryption key stored in a secrets manager.
+
 ## Secret Management
 
-| Secret | Storage | Rotation |
+| Secret | Storage | Rotation Procedure |
 |---|---|---|
-| `TF_ANTHROPIC_API_KEY` | Railway environment variable | Rotate in Anthropic Console + Railway |
-| `TF_API_KEY` | Railway environment variable | Update in Railway + Vercel simultaneously |
-| `TF_DATABASE_URL` | Railway environment variable | Rotate in Neon Console + Railway |
-| R2 credentials | Railway environment variable | Rotate in Cloudflare R2 + Railway |
+| `TF_ANTHROPIC_API_KEY` | Railway env var | 1. Generate new key in Anthropic Console. 2. Update Railway. 3. Wait for redeploy. 4. Revoke old key. |
+| `TF_API_KEY` | Railway env var | 1. Update Railway. 2. Update Vercel `API_KEY`. 3. Redeploy both. Legacy key works until Railway redeploys. |
+| `TF_DATABASE_URL` | Railway env var | 1. Rotate password in Neon Console. 2. Update Railway. 3. Wait for redeploy. |
+| R2 credentials | Railway env var | 1. Create new R2 API token in Cloudflare. 2. Update Railway. 3. Wait for redeploy. 4. Delete old token. |
+| `CLERK_SECRET_KEY` | Railway + Vercel env vars | 1. Rotate in Clerk Dashboard. 2. Update both Railway and Vercel. 3. Redeploy both. |
+| DB-backed API keys | `api_keys` table (SHA-256 hashed) | 1. Generate new key. 2. Hash and insert into `api_keys`. 3. Give raw key to customer. 4. Deactivate old key (`is_active = false`). |
+
+### Rotation Schedule
+
+- **API keys**: Rotate on customer request or suspected compromise
+- **Anthropic key**: Rotate quarterly or on compromise
+- **Database credentials**: Rotate quarterly
+- **R2 credentials**: Rotate quarterly
+- **Clerk keys**: Rotate on Clerk's recommendation or annually
 
 ## Reporting Security Issues
 
