@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { DemoButton } from "@/components/demo-button";
 import { FileDropzone } from "@/components/file-dropzone";
 import { JobHistory } from "@/components/job-history";
 import { ProcessingStatus } from "@/components/processing-status";
@@ -87,7 +88,10 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
           {/* Left Column: Upload + Status */}
           <div className="lg:col-span-2 space-y-4">
-            <h2 className="text-lg font-bold">Clinical Documents</h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold">Clinical Documents</h2>
+              <DemoButton onJobCreated={(jobId) => { setActiveJobId(jobId); setNarrative(null); }} />
+            </div>
             <FileDropzone onFileDrop={handleFileDrop} uploads={uploads} />
             <ProcessingStatus jobId={activeJobId} />
             <JobHistory
