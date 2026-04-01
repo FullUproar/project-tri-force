@@ -3,6 +3,7 @@
 import { useState, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { FileDropzone } from "@/components/file-dropzone";
+import { JobHistory } from "@/components/job-history";
 import { ProcessingStatus } from "@/components/processing-status";
 import { PriorAuthForm } from "@/components/prior-auth-form";
 import { FormSkeleton } from "@/components/skeleton";
@@ -76,6 +77,7 @@ export default function Dashboard() {
             <h2 className="text-lg font-bold">Clinical Documents</h2>
             <FileDropzone onFileDrop={handleFileDrop} uploads={uploads} />
             <ProcessingStatus jobId={activeJobId} />
+            <JobHistory onSelectJob={setActiveJobId} activeJobId={activeJobId} />
 
             {jobStatus?.status === "failed" && (
               <div className="p-3 rounded-lg bg-red-50 border border-red-200 flex items-center justify-between">
