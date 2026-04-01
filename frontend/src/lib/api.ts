@@ -90,6 +90,15 @@ export async function generateNarrative(extractionId: string): Promise<Narrative
   return res.json();
 }
 
+export async function retryJob(jobId: string): Promise<IngestionResponse> {
+  const res = await fetch(`${API_URL}/api/v1/ingest/jobs/${jobId}/retry`, {
+    method: "POST",
+    headers: AUTH_HEADERS,
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
 export function getSSEUrl(jobId: string): string {
   return `${API_URL}/api/v1/ingest/jobs/${jobId}/status`;
 }

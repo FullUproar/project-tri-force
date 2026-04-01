@@ -33,6 +33,29 @@ async def add_request_id(request: Request, call_next):
 app.include_router(api_v1_router, prefix="/api/v1")
 
 
+@app.on_event("startup")
+async def recover_stuck_jobs():
+    """Mark jobs stuck in 'processing' for >10 minutes as failed."""
+    from datetime import timedelta
+
+    from sqlalchemy import update
+
+    from app.core.db import async_session
+    from app.models.database import IngestionJob
+
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=10)
+    async with async_session() as session:
+        result = await session.execute(
+            update(IngestionJob)
+            .where(IngestionJob.status == "processing")
+            .where(IngestionJob.created_at < cutoff)
+            .values(status="failed", error_message="Server restart — please resubmit")
+        )
+        if result.rowcount > 0:
+            await session.commit()
+            logger.info("Recovered %d stuck jobs", result.rowcount)
+
+
 @app.get("/health")
 async def health(db: AsyncSession = Depends(get_db)):
     try:

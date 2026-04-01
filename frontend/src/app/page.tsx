@@ -7,7 +7,7 @@ import { ProcessingStatus } from "@/components/processing-status";
 import { PriorAuthForm } from "@/components/prior-auth-form";
 import { NarrativePanel } from "@/components/narrative-panel";
 import { useFileUpload } from "@/hooks/use-file-upload";
-import { getJobStatus, generateNarrative, type NarrativeResponse } from "@/lib/api";
+import { getJobStatus, generateNarrative, retryJob, type NarrativeResponse } from "@/lib/api";
 
 export default function Dashboard() {
   const { uploads, uploadFile } = useFileUpload();
@@ -76,8 +76,19 @@ export default function Dashboard() {
             <ProcessingStatus jobId={activeJobId} />
 
             {jobStatus?.status === "failed" && (
-              <div className="p-3 rounded-lg bg-red-50 border border-red-200">
+              <div className="p-3 rounded-lg bg-red-50 border border-red-200 flex items-center justify-between">
                 <p className="text-sm text-red-700">{jobStatus.error_message || "Processing failed"}</p>
+                <button
+                  onClick={async () => {
+                    if (activeJobId) {
+                      await retryJob(activeJobId);
+                      setNarrative(null);
+                    }
+                  }}
+                  className="px-3 py-1 text-xs font-medium bg-red-600 text-white rounded hover:bg-red-700"
+                >
+                  Retry
+                </button>
               </div>
             )}
           </div>

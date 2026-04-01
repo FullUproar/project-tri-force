@@ -282,6 +282,44 @@ async def get_job(job_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
     )
 
 
+@router.post("/jobs/{job_id}/retry", response_model=IngestionResponse)
+async def retry_job(
+    job_id: uuid.UUID,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+):
+    """Retry a failed job by re-running the extraction pipeline."""
+    job = await db.get(IngestionJob, job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job.status != "failed":
+        raise HTTPException(status_code=400, detail="Only failed jobs can be retried")
+    if not job.file_key:
+        raise HTTPException(status_code=400, detail="No file stored for this job")
+
+    # Re-download the stored file and re-run
+    file_bytes = storage.download_file(job.file_key)
+
+    if job.source_type == "clinical_note":
+        text = file_bytes.decode("utf-8")
+    elif job.source_type == "robotic_report":
+        text = extract_text_from_pdf(file_bytes)
+    else:
+        raise HTTPException(status_code=400, detail="DICOM jobs do not support retry (already completed on upload)")
+
+    job.status = "pending"
+    job.error_message = None
+    await db.commit()
+
+    background_tasks.add_task(_process_text_ingestion, job.id, text, db)
+
+    return IngestionResponse(
+        job_id=job.id,
+        status="processing",
+        message="Job requeued for processing.",
+    )
+
+
 @router.get("/jobs/{job_id}/status")
 async def job_status_sse(job_id: uuid.UUID):
     """SSE endpoint for real-time job processing status."""
