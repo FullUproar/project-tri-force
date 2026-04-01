@@ -1,5 +1,7 @@
 # CortaLoom FDA Regulatory Positioning
 
+**Entity:** CortaLoom AI, Inc. (Indiana C Corporation)
+
 ## Classification: Non-Device Clinical Decision Support (CDS)
 
 CortaLoom is **not a medical device** under the 21st Century Cures Act and FDA guidance on Clinical Decision Support software. It qualifies for the non-device CDS exemption under Section 3060 of the Cures Act.

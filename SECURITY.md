@@ -137,4 +137,10 @@ The `raw_extraction_json` field in `extraction_results` stores the full LLM outp
 
 ## Reporting Security Issues
 
+## Legal Entity
+
+CortaLoom AI, Inc. — Indiana C Corporation
+
+## Reporting Security Issues
+
 If you discover a security vulnerability, please email security@cortaloom.ai (or contact the founder directly). Do not open a public GitHub issue for security vulnerabilities.
