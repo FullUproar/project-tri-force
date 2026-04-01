@@ -133,25 +133,14 @@ async def ingest_dicom(
     )
 
 
-@router.post("/clinical-note", response_model=IngestionResponse)
-async def ingest_clinical_note(
+async def _ingest_note(
+    text: str,
+    filename: str,
     background_tasks: BackgroundTasks,
-    db: AsyncSession = Depends(get_db),
-    file: UploadFile | None = None,
-    body: ClinicalNoteRequest | None = None,
-):
-    """Ingest a clinical note as text file or JSON body."""
-    if file:
-        text = (await file.read()).decode("utf-8")
-        filename = file.filename
-        size = len(text.encode("utf-8"))
-    elif body:
-        text = body.text
-        filename = "inline_note.txt"
-        size = len(text.encode("utf-8"))
-    else:
-        raise HTTPException(status_code=400, detail="Provide a text file or JSON body with 'text' field")
-
+    db: AsyncSession,
+) -> IngestionResponse:
+    """Shared logic for clinical note ingestion."""
+    size = len(text.encode("utf-8"))
     file_key = storage.upload_file(text.encode("utf-8"), "clinical_note", "txt")
 
     job = IngestionJob(
@@ -173,6 +162,29 @@ async def ingest_clinical_note(
         message="Clinical note received. Extraction in progress.",
         file_key=file_key,
     )
+
+
+@router.post("/clinical-note", response_model=IngestionResponse)
+async def ingest_clinical_note(
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+    file: UploadFile | None = None,
+):
+    """Ingest a clinical note as text file upload."""
+    if not file:
+        raise HTTPException(status_code=400, detail="Provide a text file")
+    text = (await file.read()).decode("utf-8")
+    return await _ingest_note(text, file.filename or "upload.txt", background_tasks, db)
+
+
+@router.post("/clinical-note/text", response_model=IngestionResponse)
+async def ingest_clinical_note_text(
+    body: ClinicalNoteRequest,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+):
+    """Ingest a clinical note as JSON text body."""
+    return await _ingest_note(body.text, "inline_note.txt", background_tasks, db)
 
 
 @router.post("/robotic-report", response_model=IngestionResponse)
