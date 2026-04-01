@@ -1,0 +1,294 @@
+[
+  {
+    "patient_id": "DEMO-001",
+    "case_type": "spinal_cord_stimulator_trial",
+    "payer": "Aetna",
+    "surgeon_name": "Dr. Smith",
+    "diagnosis_code": "G89.4",
+    "procedure_cpt_code": "63650",
+    "conservative_treatments_failed": [
+      "6 weeks of physical therapy",
+      "NSAIDs for 2 months"
+    ],
+    "imaging_findings": "MRI of the lumbar spine shows post-laminectomy syndrome with persistent radicular pain despite surgical intervention.",
+    "imaging_date": "2026-02-19",
+    "symptom_duration_months": 15,
+    "functional_impairment": "Significant pain with weight-bearing, limiting ability to work and perform household tasks.",
+    "clinical_notes_text": "Patient DEMO-001, a 65-year-old male, presents with chronic spinal cord stimulator trial pain, reporting a symptom duration of 15 months. The patient describes significant pain with weight-bearing, limiting ability to work and perform household tasks.. Prior to this visit, the patient has undergone conservative management including 6 weeks of physical therapy, NSAIDs for 2 months. Recent imaging, an MRI performed on 2026-02-19, revealed post-laminectomy syndrome with persistent radicular pain despite surgical intervention.. The diagnosis is G89.4. Given the persistent symptoms, failed conservative treatments, and objective imaging findings, the patient is a candidate for spinal cord stimulator trial (CPT: 63650). Discussion with the patient confirms understanding of the procedure and risks. The patient's payer is Aetna. The current readiness score for prior authorization is green due to all criteria met for prior authorization..",
+    "expected_extraction_result": {
+      "patient_id": "DEMO-001",
+      "case_type": "spinal_cord_stimulator_trial",
+      "payer": "UnitedHealthcare",
+      "surgeon_name": "Dr. Smith",
+      "diagnosis_code": "G89.4",
+      "procedure_cpt_code": "63650",
+      "conservative_treatments_failed": [
+        "6 weeks of physical therapy",
+        "NSAIDs for 2 months"
+      ],
+      "imaging_findings": "MRI of the lumbar spine shows post-laminectomy syndrome with persistent radicular pain despite surgical intervention.",
+      "imaging_date": "2026-02-19",
+      "symptom_duration_months": 15,
+      "functional_impairment": "Significant pain with weight-bearing, limiting ability to work and perform household tasks."
+    },
+    "expected_readiness_score": {
+      "score": "green",
+      "reason": "All criteria met for prior authorization."
+    }
+  },
+  {
+    "patient_id": "DEMO-002",
+    "case_type": "hip_replacement",
+    "payer": "Cigna",
+    "surgeon_name": "Dr. Williams",
+    "diagnosis_code": "M16.12",
+    "procedure_cpt_code": "27130",
+    "conservative_treatments_failed": [
+      "3 months of physical therapy",
+      "NSAIDs for 2 months"
+    ],
+    "imaging_findings": "X-ray of the right hip shows severe degenerative changes, flattening of the femoral head, and acetabular erosion.",
+    "imaging_date": "2025-07-04",
+    "symptom_duration_months": 14,
+    "functional_impairment": "Severe limitation in ambulation and daily activities, requiring assistive devices.",
+    "clinical_notes_text": "Patient DEMO-002, a 65-year-old male, presents with chronic hip replacement pain, reporting a symptom duration of 14 months. The patient describes severe limitation in ambulation and daily activities, requiring assistive devices.. Prior to this visit, the patient has undergone conservative management including 3 months of physical therapy, NSAIDs for 2 months. Recent imaging, an X-ray performed on 2025-07-04, revealed severe degenerative changes, flattening of the femoral head, and acetabular erosion.. The diagnosis is M16.12. Given the persistent symptoms, failed conservative treatments, and objective imaging findings, the patient is a candidate for hip replacement (CPT: 27130). Discussion with the patient confirms understanding of the procedure and risks. The patient's payer is Cigna. The current readiness score for prior authorization is yellow due to imaging study is older than 6 months. may require updated imaging per payer policy..",
+    "expected_extraction_result": {
+      "patient_id": "DEMO-002",
+      "case_type": "hip_replacement",
+      "payer": "Humana",
+      "surgeon_name": "Dr. Williams",
+      "diagnosis_code": "M16.12",
+      "procedure_cpt_code": "27130",
+      "conservative_treatments_failed": [
+        "3 months of physical therapy",
+        "NSAIDs for 2 months"
+      ],
+      "imaging_findings": "X-ray of the right hip shows severe degenerative changes, flattening of the femoral head, and acetabular erosion.",
+      "imaging_date": "2025-07-04",
+      "symptom_duration_months": 14,
+      "functional_impairment": "Severe limitation in ambulation and daily activities, requiring assistive devices."
+    },
+    "expected_readiness_score": {
+      "score": "yellow",
+      "reason": "Imaging study is older than 6 months. May require updated imaging per payer policy."
+    }
+  },
+  {
+    "patient_id": "DEMO-003",
+    "case_type": "knee_arthroscopy",
+    "payer": "UnitedHealthcare",
+    "surgeon_name": "Dr. Jones",
+    "diagnosis_code": "S83.202A",
+    "procedure_cpt_code": "29880",
+    "conservative_treatments_failed": [
+      "6 weeks of physical therapy",
+      "NSAIDs for 2 months"
+    ],
+    "imaging_findings": "MRI of the left knee indicates a flap tear of the lateral meniscus and loose bodies within the joint.",
+    "imaging_date": "2024-07-10",
+    "symptom_duration_months": 16,
+    "functional_impairment": "Significant pain with weight-bearing, limiting ability to work and perform household tasks.",
+    "clinical_notes_text": "Patient DEMO-003, a 65-year-old male, presents with chronic knee arthroscopy pain, reporting a symptom duration of 16 months. The patient describes significant pain with weight-bearing, limiting ability to work and perform household tasks.. Prior to this visit, the patient has undergone conservative management including 6 weeks of physical therapy, NSAIDs for 2 months. Recent imaging, an MRI performed on 2024-07-10, revealed a flap tear of the lateral meniscus and loose bodies within the joint.. The diagnosis is S83.202A. Given the persistent symptoms, failed conservative treatments, and objective imaging findings, the patient is a candidate for knee arthroscopy (CPT: 29880). Discussion with the patient confirms understanding of the procedure and risks. The patient's payer is UnitedHealthcare. The current readiness score for prior authorization is yellow due to imaging study is older than 12 months. requires updated imaging per payer policy..",
+    "expected_extraction_result": {
+      "patient_id": "DEMO-003",
+      "case_type": "knee_arthroscopy",
+      "payer": "Aetna",
+      "surgeon_name": "Dr. Jones",
+      "diagnosis_code": "S83.202A",
+      "procedure_cpt_code": "29880",
+      "conservative_treatments_failed": [
+        "6 weeks of physical therapy",
+        "NSAIDs for 2 months"
+      ],
+      "imaging_findings": "MRI of the left knee indicates a flap tear of the lateral meniscus and loose bodies within the joint.",
+      "imaging_date": "2024-07-10",
+      "symptom_duration_months": 16,
+      "functional_impairment": "Significant pain with weight-bearing, limiting ability to work and perform household tasks."
+    },
+    "expected_readiness_score": {
+      "score": "yellow",
+      "reason": "Imaging study is older than 12 months. Requires updated imaging per payer policy."
+    }
+  },
+  {
+    "patient_id": "DEMO-004",
+    "case_type": "cervical_fusion",
+    "payer": "Humana",
+    "surgeon_name": "Dr. Smith",
+    "diagnosis_code": "M50.00",
+    "procedure_cpt_code": "22551",
+    "conservative_treatments_failed": [
+      "Pain relievers for 4 months"
+    ],
+    "imaging_findings": "MRI of the cervical spine reveals C4-C5 disc herniation with significant cord compression and radiculopathy.",
+    "imaging_date": "2025-09-17",
+    "symptom_duration_months": 10,
+    "functional_impairment": "Neck pain with associated numbness and weakness in upper extremities, affecting fine motor skills.",
+    "clinical_notes_text": "Patient DEMO-004, a 65-year-old male, presents with chronic cervical fusion pain, reporting a symptom duration of 10 months. The patient describes neck pain with associated numbness and weakness in upper extremities, affecting fine motor skills.. Prior to this visit, the patient has undergone conservative management including pain relievers for 4 months. Recent imaging, an MRI performed on 2025-09-17, revealed C4-C5 disc herniation with significant cord compression and radiculopathy.. The diagnosis is M50.00. Given the persistent symptoms, failed conservative treatments, and objective imaging findings, the patient is a candidate for cervical fusion (CPT: 22551). Discussion with the patient confirms understanding of the procedure and risks. The patient's payer is Humana. The current readiness score for prior authorization is red due to insufficient conservative treatment documentation. payer typically requires at least 3 distinct modalities over a specified duration..",
+    "expected_extraction_result": {
+      "patient_id": "DEMO-004",
+      "case_type": "cervical_fusion",
+      "payer": "UnitedHealthcare",
+      "surgeon_name": "Dr. Smith",
+      "diagnosis_code": "M50.00",
+      "procedure_cpt_code": "22551",
+      "conservative_treatments_failed": [
+        "Pain relievers for 4 months"
+      ],
+      "imaging_findings": "MRI of the cervical spine reveals C4-C5 disc herniation with significant cord compression and radiculopathy.",
+      "imaging_date": "2025-09-17",
+      "symptom_duration_months": 10,
+      "functional_impairment": "Neck pain with associated numbness and weakness in upper extremities, affecting fine motor skills."
+    },
+    "expected_readiness_score": {
+      "score": "red",
+      "reason": "Insufficient conservative treatment documentation. Payer typically requires at least 3 distinct modalities over a specified duration."
+    }
+  },
+  {
+    "patient_id": "DEMO-005",
+    "case_type": "rotator_cuff_repair",
+    "payer": "BlueCross BlueShield",
+    "surgeon_name": "Dr. Davis",
+    "diagnosis_code": "M75.122",
+    "procedure_cpt_code": "29827",
+    "conservative_treatments_failed": [
+      "3 months of physical therapy",
+      "NSAIDs for 2 months",
+      "Corticosteroid injection 3 months ago",
+      "Chiropractic adjustments for 2 months"
+    ],
+    "imaging_findings": "MRI of the left shoulder shows a partial-thickness tear of the infraspinatus tendon with tendinosis.",
+    "imaging_date": "2025-08-27",
+    "symptom_duration_months": 18,
+    "functional_impairment": "Inability to lift arm above shoulder height, impacting personal care and occupational duties.",
+    "clinical_notes_text": "Patient DEMO-005, a 65-year-old male, presents with chronic rotator cuff repair pain, reporting a symptom duration of 18 months. The patient describes inability to lift arm above shoulder height, impacting personal care and occupational duties.. Prior to this visit, the patient has undergone conservative management including 3 months of physical therapy, NSAIDs for 2 months, Corticosteroid injection 3 months ago, Chiropractic adjustments for 2 months. Recent imaging, an MRI performed on 2025-08-27, revealed a partial-thickness tear of the infraspinatus tendon with tendinosis.. The diagnosis is M75.122. Given the persistent symptoms, failed conservative treatments, and objective imaging findings, the patient is a candidate for rotator cuff repair (CPT: 29827). Discussion with the patient confirms understanding of the procedure and risks. The patient's payer is BlueCross BlueShield. The current readiness score for prior authorization is green due to all criteria met for prior authorization..",
+    "expected_extraction_result": {
+      "patient_id": "DEMO-005",
+      "case_type": "rotator_cuff_repair",
+      "payer": "Aetna",
+      "surgeon_name": "Dr. Williams",
+      "diagnosis_code": "M75.122",
+      "procedure_cpt_code": "29827",
+      "conservative_treatments_failed": [
+        "3 months of physical therapy",
+        "NSAIDs for 2 months",
+        "Corticosteroid injection 3 months ago",
+        "Chiropractic adjustments for 2 months"
+      ],
+      "imaging_findings": "MRI of the left shoulder shows a partial-thickness tear of the infraspinatus tendon with tendinosis.",
+      "imaging_date": "2025-08-27",
+      "symptom_duration_months": 18,
+      "functional_impairment": "Inability to lift arm above shoulder height, impacting personal care and occupational duties."
+    },
+    "expected_readiness_score": {
+      "score": "green",
+      "reason": "All criteria met for prior authorization."
+    }
+  },
+  {
+    "patient_id": "DEMO-006",
+    "case_type": "laminectomy",
+    "payer": "Aetna",
+    "surgeon_name": "Dr. Brown",
+    "diagnosis_code": "M48.062",
+    "procedure_cpt_code": "63047",
+    "conservative_treatments_failed": [
+      "6 weeks of physical therapy",
+      "Pain relievers for 4 months"
+    ],
+    "imaging_findings": "MRI of the lumbar spine demonstrates severe central canal stenosis at L3-L4 due to ligamentum flavum hypertrophy and disc bulging.",
+    "imaging_date": "2025-12-16",
+    "symptom_duration_months": 2,
+    "functional_impairment": "Chronic low back pain radiating to bilateral lower extremities, restricting prolonged sitting or standing.",
+    "clinical_notes_text": "Patient DEMO-006, a 65-year-old male, presents with chronic laminectomy pain, reporting a symptom duration of 2 months. The patient describes chronic low back pain radiating to bilateral lower extremities, restricting prolonged sitting or standing.. Prior to this visit, the patient has undergone conservative management including 6 weeks of physical therapy, Pain relievers for 4 months. Recent imaging, an MRI performed on 2025-12-16, revealed severe central canal stenosis at L3-L4 due to ligamentum flavum hypertrophy and disc bulging.. The diagnosis is M48.062. Given the persistent symptoms, failed conservative treatments, and objective imaging findings, the patient is a candidate for laminectomy (CPT: 63047). Discussion with the patient confirms understanding of the procedure and risks. The patient's payer is Aetna. The current readiness score for prior authorization is yellow due to symptom duration (2 months) is shorter than typical payer requirement (e.g., 3-6 months)..",
+    "expected_extraction_result": {
+      "patient_id": "DEMO-006",
+      "case_type": "laminectomy",
+      "payer": "UnitedHealthcare",
+      "surgeon_name": "Dr. Brown",
+      "diagnosis_code": "M48.062",
+      "procedure_cpt_code": "63047",
+      "conservative_treatments_failed": [
+        "6 weeks of physical therapy",
+        "Pain relievers for 4 months"
+      ],
+      "imaging_findings": "MRI of the lumbar spine demonstrates severe central canal stenosis at L3-L4 due to ligamentum flavum hypertrophy and disc bulging.",
+      "imaging_date": "2025-12-16",
+      "symptom_duration_months": 2,
+      "functional_impairment": "Chronic low back pain radiating to bilateral lower extremities, restricting prolonged sitting or standing."
+    },
+    "expected_readiness_score": {
+      "score": "yellow",
+      "reason": "Symptom duration (2 months) is shorter than typical payer requirement (e.g., 3-6 months)."
+    }
+  },
+  {
+    "patient_id": "DEMO-007",
+    "case_type": "lumbar_fusion",
+    "payer": "BlueCross BlueShield",
+    "surgeon_name": "Dr. Williams",
+    "diagnosis_code": "M51.26",
+    "procedure_cpt_code": "22630",
+    "conservative_treatments_failed": [],
+    "imaging_findings": "MRI of the lumbar spine shows L5-S1 spondylolisthesis with bilateral pars defects and nerve root compression.",
+    "imaging_date": "2025-10-04",
+    "symptom_duration_months": 15,
+    "functional_impairment": "Neck pain with associated numbness and weakness in upper extremities, affecting fine motor skills.",
+    "clinical_notes_text": "Patient DEMO-007, a 65-year-old male, presents with chronic lumbar fusion pain, reporting a symptom duration of 15 months. The patient describes neck pain with associated numbness and weakness in upper extremities, affecting fine motor skills.. Prior to this visit, the patient has undergone conservative management including no documented conservative treatments. Recent imaging, an MRI performed on 2025-10-04, revealed L5-S1 spondylolisthesis with bilateral pars defects and nerve root compression.. The diagnosis is M51.26. Given the persistent symptoms, failed conservative treatments, and objective imaging findings, the patient is a candidate for lumbar fusion (CPT: 22630). Discussion with the patient confirms understanding of the procedure and risks. The patient's payer is BlueCross BlueShield. The current readiness score for prior authorization is red due to no documented conservative treatments. prior authorization will be denied..",
+    "expected_extraction_result": {
+      "patient_id": "DEMO-007",
+      "case_type": "lumbar_fusion",
+      "payer": "UnitedHealthcare",
+      "surgeon_name": "Dr. Williams",
+      "diagnosis_code": "M51.26",
+      "procedure_cpt_code": "22630",
+      "conservative_treatments_failed": [],
+      "imaging_findings": "MRI of the lumbar spine shows L5-S1 spondylolisthesis with bilateral pars defects and nerve root compression.",
+      "imaging_date": "2025-10-04",
+      "symptom_duration_months": 15,
+      "functional_impairment": "Neck pain with associated numbness and weakness in upper extremities, affecting fine motor skills."
+    },
+    "expected_readiness_score": {
+      "score": "red",
+      "reason": "No documented conservative treatments. Prior authorization will be denied."
+    }
+  },
+  {
+    "patient_id": "DEMO-008",
+    "case_type": "lumbar_fusion",
+    "payer": "Aetna",
+    "surgeon_name": "Dr. Williams",
+    "diagnosis_code": "M48.062",
+    "procedure_cpt_code": "22630",
+    "conservative_treatments_failed": [
+      "Oral corticosteroids for 3 weeks",
+      "Pain relievers for 4 months"
+    ],
+    "imaging_findings": "MRI of the lumbar spine reveals L4-L5 degenerative disc disease with severe disc space narrowing and central canal stenosis.",
+    "imaging_date": "2024-11-28",
+    "symptom_duration_months": 24,
+    "functional_impairment": "Persistent pain preventing participation in recreational activities and exercise.",
+    "clinical_notes_text": "Patient DEMO-008, a 65-year-old male, presents with chronic lumbar fusion pain, reporting a symptom duration of 24 months. The patient describes persistent pain preventing participation in recreational activities and exercise.. Prior to this visit, the patient has undergone conservative management including Oral corticosteroids for 3 weeks, Pain relievers for 4 months. Recent imaging, an MRI performed on 2024-11-28, revealed L4-L5 degenerative disc disease with severe disc space narrowing and central canal stenosis.. The diagnosis is M48.061. Given the persistent symptoms, failed conservative treatments, and objective imaging findings, the patient is a candidate for lumbar fusion (CPT: 22630). Discussion with the patient confirms understanding of the procedure and risks. The patient's payer is Aetna. The current readiness score for prior authorization is green due to all criteria met for prior authorization..",
+    "expected_extraction_result": {
+      "patient_id": "DEMO-008",
+      "case_type": "lumbar_fusion",
+      "payer": "Aetna",
+      "surgeon_name": "Dr. Smith",
+      "diagnosis_code": "M48.062",
+      "procedure_cpt_code": "22630",
+      "conservative_treatments_failed": [
+        "Oral corticosteroids for 3 weeks",
+        "Pain relievers for 4 months"
+      ],
+      "imaging_findings": "MRI of the lumbar spine reveals L4-L5 degenerative disc disease with severe disc space narrowing and central canal stenosis.",
+      "imaging_date": "2024-11-28",
+      "symptom_duration_months": 24,
+      "functional_impairment": "Persistent pain preventing participation in recreational activities and exercise."
+    },
+    "expected_readiness_score": {
+      "score": "green",
+      "reason": "All criteria met for prior authorization."
+    }
+  }
+]
