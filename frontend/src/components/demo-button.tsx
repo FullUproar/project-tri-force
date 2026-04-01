@@ -28,8 +28,7 @@ using the Stryker Triathlon Total Knee System with Mako robotic-assisted surgica
 Mako robotic assistance is indicated to optimize implant positioning and achieve precise
 ligament balance, particularly important given the significant varus deformity.`;
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-const API_KEY = process.env.NEXT_PUBLIC_API_KEY || "";
+import { uploadClinicalNoteText } from "@/lib/api";
 
 interface DemoButtonProps {
   onJobCreated: (jobId: string) => void;
@@ -41,18 +40,10 @@ export function DemoButton({ onJobCreated }: DemoButtonProps) {
   const handleDemo = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/api/v1/ingest/clinical-note/text`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(API_KEY ? { "X-API-Key": API_KEY } : {}),
-        },
-        body: JSON.stringify({ text: SAMPLE_NOTE }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        onJobCreated(data.job_id);
-      }
+      const data = await uploadClinicalNoteText(SAMPLE_NOTE);
+      onJobCreated(data.job_id);
+    } catch {
+      // silently fail
     } finally {
       setLoading(false);
     }

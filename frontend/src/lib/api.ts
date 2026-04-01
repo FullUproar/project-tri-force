@@ -1,7 +1,6 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-const API_KEY = process.env.NEXT_PUBLIC_API_KEY || "";
-
-const AUTH_HEADERS: Record<string, string> = API_KEY ? { "X-API-Key": API_KEY } : {};
+// All API calls go through the Next.js proxy at /api/proxy/...
+// The proxy adds the API key server-side — never exposed to the browser.
+const API_BASE = "/api/proxy/api/v1";
 
 export interface IngestionResponse {
   job_id: string;
@@ -40,9 +39,8 @@ export interface NarrativeResponse {
 export async function uploadDicom(file: File): Promise<IngestionResponse> {
   const form = new FormData();
   form.append("file", file);
-  const res = await fetch(`${API_URL}/api/v1/ingest/dicom`, {
+  const res = await fetch(`${API_BASE}/ingest/dicom`, {
     method: "POST",
-    headers: AUTH_HEADERS,
     body: form,
   });
   if (!res.ok) throw new Error(await res.text());
@@ -52,9 +50,8 @@ export async function uploadDicom(file: File): Promise<IngestionResponse> {
 export async function uploadClinicalNote(file: File): Promise<IngestionResponse> {
   const form = new FormData();
   form.append("file", file);
-  const res = await fetch(`${API_URL}/api/v1/ingest/clinical-note`, {
+  const res = await fetch(`${API_BASE}/ingest/clinical-note`, {
     method: "POST",
-    headers: AUTH_HEADERS,
     body: form,
   });
   if (!res.ok) throw new Error(await res.text());
@@ -64,45 +61,48 @@ export async function uploadClinicalNote(file: File): Promise<IngestionResponse>
 export async function uploadRoboticReport(file: File): Promise<IngestionResponse> {
   const form = new FormData();
   form.append("file", file);
-  const res = await fetch(`${API_URL}/api/v1/ingest/robotic-report`, {
+  const res = await fetch(`${API_BASE}/ingest/robotic-report`, {
     method: "POST",
-    headers: AUTH_HEADERS,
     body: form,
   });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
 
-export async function getJobStatus(jobId: string): Promise<JobStatusResponse> {
-  const res = await fetch(`${API_URL}/api/v1/ingest/jobs/${jobId}`, {
-    headers: AUTH_HEADERS,
+export async function uploadClinicalNoteText(text: string): Promise<IngestionResponse> {
+  const res = await fetch(`${API_BASE}/ingest/clinical-note/text`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text }),
   });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
 
+export async function getJobStatus(jobId: string): Promise<JobStatusResponse> {
+  const res = await fetch(`${API_BASE}/ingest/jobs/${jobId}`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
 export async function generateNarrative(extractionId: string): Promise<NarrativeResponse> {
-  const res = await fetch(`${API_URL}/api/v1/extraction/${extractionId}/narrative`, {
+  const res = await fetch(`${API_BASE}/extraction/${extractionId}/narrative`, {
     method: "POST",
-    headers: AUTH_HEADERS,
   });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
 
 export async function retryJob(jobId: string): Promise<IngestionResponse> {
-  const res = await fetch(`${API_URL}/api/v1/ingest/jobs/${jobId}/retry`, {
+  const res = await fetch(`${API_BASE}/ingest/jobs/${jobId}/retry`, {
     method: "POST",
-    headers: AUTH_HEADERS,
   });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
 
 export async function exportNarrativePdf(extractionId: string): Promise<void> {
-  const res = await fetch(`${API_URL}/api/v1/extraction/${extractionId}/export/pdf`, {
-    headers: AUTH_HEADERS,
-  });
+  const res = await fetch(`${API_BASE}/extraction/${extractionId}/export/pdf`);
   if (!res.ok) throw new Error(await res.text());
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
@@ -114,6 +114,5 @@ export async function exportNarrativePdf(extractionId: string): Promise<void> {
 }
 
 export function getSSEUrl(jobId: string): string {
-  const params = API_KEY ? `?api_key=${encodeURIComponent(API_KEY)}` : "";
-  return `${API_URL}/api/v1/ingest/jobs/${jobId}/status${params}`;
+  return `${API_BASE}/ingest/jobs/${jobId}/status`;
 }

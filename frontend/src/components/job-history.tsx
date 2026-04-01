@@ -4,9 +4,6 @@ import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { FileText, Image } from "lucide-react";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-const API_KEY = process.env.NEXT_PUBLIC_API_KEY || "";
-
 interface Job {
   job_id: string;
   status: string;
@@ -16,9 +13,7 @@ interface Job {
 }
 
 async function fetchJobs(): Promise<Job[]> {
-  const res = await fetch(`${API_URL}/api/v1/ingest/jobs?limit=10`, {
-    headers: API_KEY ? { "X-API-Key": API_KEY } : {},
-  });
+  const res = await fetch("/api/proxy/api/v1/ingest/jobs?limit=10");
   if (!res.ok) return [];
   return res.json();
 }
