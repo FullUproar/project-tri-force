@@ -51,6 +51,11 @@ async def get_current_tenant(
     db_key = result.scalar_one_or_none()
 
     if db_key and db_key.organization and db_key.organization.is_active:
+        if not db_key.organization.baa_signed_at:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Business Associate Agreement must be signed before uploading data. Contact support@cortaloom.ai.",
+            )
         return db_key.organization
 
     # Fallback: legacy single API key (no tenant — returns default org)

@@ -26,6 +26,7 @@ class Organization(Base):
         DateTime(timezone=True), server_default=func.now()
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    baa_signed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     api_keys: Mapped[list["ApiKey"]] = relationship(back_populates="organization")
 

@@ -8,6 +8,8 @@ import hashlib
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+from sqlalchemy.orm import selectinload
+
 from app.core.db import async_session
 from app.core.security import hash_api_key
 from app.main import app
@@ -16,17 +18,27 @@ from app.models.database import ApiKey, IngestionJob, Organization
 
 async def _create_tenant(name: str, api_key_raw: str) -> tuple[str, str]:
     """Create an org + API key in the DB, or return existing. Returns (org_id, raw_key)."""
+    from datetime import datetime, timezone
+
     from sqlalchemy import select
 
     async with async_session() as db:
         # Check if key already exists
         existing = await db.execute(
-            select(ApiKey).where(ApiKey.key_hash == hash_api_key(api_key_raw)).limit(1)
+            select(ApiKey)
+            .options(selectinload(ApiKey.organization))
+            .where(ApiKey.key_hash == hash_api_key(api_key_raw))
+            .limit(1)
         )
-        if existing.scalar_one_or_none():
+        existing_key = existing.scalar_one_or_none()
+        if existing_key:
+            # Ensure BAA is signed for existing test orgs
+            if existing_key.organization and not existing_key.organization.baa_signed_at:
+                existing_key.organization.baa_signed_at = datetime.now(timezone.utc)
+                await db.commit()
             return "", api_key_raw
 
-        org = Organization(name=name)
+        org = Organization(name=name, baa_signed_at=datetime.now(timezone.utc))
         db.add(org)
         await db.flush()
 
