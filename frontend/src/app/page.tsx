@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { UserButton } from "@clerk/nextjs";
 import { DemoButton } from "@/components/demo-button";
 import { FileDropzone } from "@/components/file-dropzone";
 import { JobHistory } from "@/components/job-history";
@@ -82,6 +83,7 @@ export default function Dashboard() {
               </button>
             )}
             <span className="text-xs px-2 py-1 bg-[var(--muted)] rounded">v0.1.0</span>
+            <UserButton />
           </div>
         </div>
       </header>
