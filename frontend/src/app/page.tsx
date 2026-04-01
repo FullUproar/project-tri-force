@@ -5,6 +5,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { FileDropzone } from "@/components/file-dropzone";
 import { ProcessingStatus } from "@/components/processing-status";
 import { PriorAuthForm } from "@/components/prior-auth-form";
+import { FormSkeleton } from "@/components/skeleton";
 import { NarrativePanel } from "@/components/narrative-panel";
 import { useFileUpload } from "@/hooks/use-file-upload";
 import { getJobStatus, generateNarrative, retryJob, type NarrativeResponse } from "@/lib/api";
@@ -50,6 +51,7 @@ export default function Dashboard() {
   );
 
   const extraction = jobStatus?.extraction_result || null;
+  const isProcessing = activeJobId && jobStatus?.status === "processing";
 
   return (
     <div className="min-h-screen">
@@ -95,18 +97,24 @@ export default function Dashboard() {
 
           {/* Right Column: Form + Narrative */}
           <div className="lg:col-span-3 space-y-6">
-            <PriorAuthForm
-              extraction={extraction}
-              onGenerateNarrative={handleGenerateNarrative}
-              isGenerating={narrativeMutation.isPending}
-            />
-            <NarrativePanel
-              narrative={narrative}
-              onRegenerate={() => {
-                if (extraction?.id) narrativeMutation.mutate(extraction.id);
-              }}
-              isRegenerating={narrativeMutation.isPending}
-            />
+            {isProcessing ? (
+              <FormSkeleton />
+            ) : (
+              <>
+                <PriorAuthForm
+                  extraction={extraction}
+                  onGenerateNarrative={handleGenerateNarrative}
+                  isGenerating={narrativeMutation.isPending}
+                />
+                <NarrativePanel
+                  narrative={narrative}
+                  onRegenerate={() => {
+                    if (extraction?.id) narrativeMutation.mutate(extraction.id);
+                  }}
+                  isRegenerating={narrativeMutation.isPending}
+                />
+              </>
+            )}
           </div>
         </div>
       </main>
