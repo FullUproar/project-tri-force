@@ -59,15 +59,35 @@ async def recover_stuck_jobs():
 
 @app.get("/health")
 async def health(db: AsyncSession = Depends(get_db)):
+    import time
+
+    from app.core.db import engine
+
+    start = time.monotonic()
     try:
         await db.execute(text("SELECT 1"))
         db_status = "ok"
+        db_latency_ms = round((time.monotonic() - start) * 1000, 1)
     except Exception:
         db_status = "unreachable"
+        db_latency_ms = None
+
+    pool = engine.pool
+    try:
+        pool_stats = {
+            "size": pool.size(),
+            "checked_in": pool.checkedin(),
+            "checked_out": pool.checkedout(),
+            "overflow": pool.overflow(),
+        }
+    except AttributeError:
+        pool_stats = {"type": type(pool).__name__}
 
     return {
         "status": "ok" if db_status == "ok" else "degraded",
         "database": db_status,
+        "db_latency_ms": db_latency_ms,
+        "pool": pool_stats,
         "service": "cortaloom-api",
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "version": "0.1.0",
