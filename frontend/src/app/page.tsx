@@ -77,7 +77,13 @@ export default function Dashboard() {
             <h2 className="text-lg font-bold">Clinical Documents</h2>
             <FileDropzone onFileDrop={handleFileDrop} uploads={uploads} />
             <ProcessingStatus jobId={activeJobId} />
-            <JobHistory onSelectJob={setActiveJobId} activeJobId={activeJobId} />
+            <JobHistory
+              onSelectJob={(jobId) => {
+                setActiveJobId(jobId);
+                setNarrative(null);
+              }}
+              activeJobId={activeJobId}
+            />
 
             {jobStatus?.status === "failed" && (
               <div className="p-3 rounded-lg bg-red-50 border border-red-200 flex items-center justify-between">
