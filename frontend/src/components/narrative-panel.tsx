@@ -1,18 +1,20 @@
 "use client";
 
 import { useState } from "react";
-import { Copy, Check, RefreshCw } from "lucide-react";
+import { Copy, Check, RefreshCw, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { NarrativeResponse } from "@/lib/api";
+import { exportNarrativePdf, type NarrativeResponse } from "@/lib/api";
 
 interface NarrativePanelProps {
   narrative: NarrativeResponse | null;
+  extractionId: string | null;
   onRegenerate: () => void;
   isRegenerating: boolean;
 }
 
-export function NarrativePanel({ narrative, onRegenerate, isRegenerating }: NarrativePanelProps) {
+export function NarrativePanel({ narrative, extractionId, onRegenerate, isRegenerating }: NarrativePanelProps) {
   const [copied, setCopied] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   if (!narrative) return null;
 
@@ -20,6 +22,18 @@ export function NarrativePanel({ narrative, onRegenerate, isRegenerating }: Narr
     await navigator.clipboard.writeText(narrative.narrative_text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleDownload = async () => {
+    if (!extractionId) return;
+    setDownloading(true);
+    try {
+      await exportNarrativePdf(extractionId);
+    } catch {
+      // silently fail — user can copy text instead
+    } finally {
+      setDownloading(false);
+    }
   };
 
   return (
@@ -30,6 +44,14 @@ export function NarrativePanel({ narrative, onRegenerate, isRegenerating }: Narr
           <span className="text-xs text-[var(--muted-foreground)]">
             {narrative.model_used} ({narrative.prompt_version})
           </span>
+          <button
+            onClick={handleDownload}
+            disabled={downloading || !extractionId}
+            className="p-1.5 rounded hover:bg-[var(--muted)] transition-colors disabled:opacity-50"
+            title="Download PDF"
+          >
+            <Download className={cn("w-4 h-4", downloading && "animate-pulse")} />
+          </button>
           <button
             onClick={handleCopy}
             className="p-1.5 rounded hover:bg-[var(--muted)] transition-colors"

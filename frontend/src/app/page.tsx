@@ -108,6 +108,7 @@ export default function Dashboard() {
                 />
                 <NarrativePanel
                   narrative={narrative}
+                  extractionId={extraction?.id || null}
                   onRegenerate={() => {
                     if (extraction?.id) narrativeMutation.mutate(extraction.id);
                   }}

@@ -99,6 +99,20 @@ export async function retryJob(jobId: string): Promise<IngestionResponse> {
   return res.json();
 }
 
+export async function exportNarrativePdf(extractionId: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/v1/extraction/${extractionId}/export/pdf`, {
+    headers: AUTH_HEADERS,
+  });
+  if (!res.ok) throw new Error(await res.text());
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `prior-auth-${extractionId.slice(0, 8)}.pdf`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export function getSSEUrl(jobId: string): string {
   return `${API_URL}/api/v1/ingest/jobs/${jobId}/status`;
 }

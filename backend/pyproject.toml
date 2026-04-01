@@ -21,6 +21,7 @@ dependencies = [
     "presidio-anonymizer",
     "boto3",
     "httpx",
+    "reportlab",
 ]
 
 [project.optional-dependencies]
