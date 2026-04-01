@@ -9,6 +9,7 @@ import { JobHistory } from "@/components/job-history";
 import { ProcessingStatus } from "@/components/processing-status";
 import { TimeSaved } from "@/components/time-saved";
 import { PriorAuthForm } from "@/components/prior-auth-form";
+import { ReadinessScore } from "@/components/readiness-score";
 import { FormSkeleton } from "@/components/skeleton";
 import { NarrativePanel } from "@/components/narrative-panel";
 import { useFileUpload } from "@/hooks/use-file-upload";
@@ -137,6 +138,7 @@ export default function Dashboard() {
               <FormSkeleton />
             ) : (
               <>
+                <ReadinessScore extraction={extraction} />
                 <PriorAuthForm
                   extraction={extraction}
                   onGenerateNarrative={handleGenerateNarrative}

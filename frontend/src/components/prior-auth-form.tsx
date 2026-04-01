@@ -7,6 +7,7 @@ import { z } from "zod";
 import { cn } from "@/lib/utils";
 import { updateOutcome, type ExtractionResult, type PriorAuthOutcome } from "@/lib/api";
 import { getICD10Description } from "@/lib/icd10";
+import { TreatmentChecklist } from "@/components/treatment-checklist";
 
 const schema = z.object({
   diagnosis_code: z.string().min(1, "Required"),
@@ -90,16 +91,7 @@ export function PriorAuthForm({ extraction, onGenerateNarrative, isGenerating }:
             )}
           </div>
 
-          <div>
-            <label className="block text-sm font-medium mb-1">
-              Conservative Treatments Failed
-            </label>
-            <input
-              {...register("conservative_treatments_failed")}
-              className="w-full px-3 py-2 border border-[var(--border)] rounded-md bg-[var(--background)] text-sm"
-              placeholder="NSAIDs, Physical Therapy, Cortisone Injection"
-            />
-          </div>
+          <TreatmentChecklist treatments={extraction.conservative_treatments_failed} />
 
           <div>
             <label className="block text-sm font-medium mb-1">Implant Requested</label>
