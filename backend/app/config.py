@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     # API Authentication
     api_key: SecretStr = SecretStr("dev-key-change-me")
 
+    # Data Retention
+    data_retention_days: int = 90  # Auto-purge completed jobs older than this
+
     # Application
     log_level: str = "INFO"
     allowed_origins: list[str] = ["http://localhost:3000"]

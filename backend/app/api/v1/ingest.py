@@ -23,7 +23,7 @@ from app.models.schemas import (
 from app.services import storage
 from app.services.dicom_service import parse_dicom
 from app.services.pdf_parser import extract_text_from_pdf
-from app.services.phi_scrubber import scrub_text
+from app.services.phi_scrubber import scrub_text, scrub_text_with_stats
 from app.core.audit import log_event, log_event_standalone
 from app.services.llm.extraction import extract_prior_auth_data
 
@@ -53,7 +53,19 @@ async def _process_text_ingestion(job_id: uuid.UUID, text: str):
                 job.status = "processing"
                 await db.commit()
 
-            scrubbed = scrub_text(text)
+            scrub_result = scrub_text_with_stats(text)
+            scrubbed = scrub_result.text
+
+            await log_event(
+                db, "phi_scrub", "ingestion_job", job_id,
+                metadata={
+                    "regex_redactions": scrub_result.regex_count,
+                    "presidio_redactions": scrub_result.presidio_count,
+                    "total_redactions": scrub_result.total_redactions,
+                },
+            )
+            await db.commit()
+
             extraction = await extract_prior_auth_data(scrubbed)
 
             result = ExtractionResult(

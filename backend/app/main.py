@@ -2,7 +2,7 @@ import uuid as uuid_mod
 from datetime import datetime, timezone
 
 from fastapi import Depends, FastAPI, Request
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.router import api_v1_router
@@ -55,6 +55,56 @@ async def recover_stuck_jobs():
         if result.rowcount > 0:
             await session.commit()
             logger.info("Recovered %d stuck jobs", result.rowcount)
+
+
+@app.on_event("startup")
+async def purge_expired_data():
+    """Delete completed jobs older than data_retention_days (HIPAA compliance)."""
+    from datetime import timedelta
+
+    from sqlalchemy import delete
+
+    from app.config import settings
+    from app.core.db import async_session
+    from app.models.database import (
+        ExtractionResult,
+        IngestionJob,
+        PayerNarrative,
+    )
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=settings.data_retention_days)
+    async with async_session() as session:
+        # Delete narratives for old extractions
+        old_extractions = (
+            select(ExtractionResult.id)
+            .join(IngestionJob)
+            .where(IngestionJob.created_at < cutoff)
+            .where(IngestionJob.status == "completed")
+        )
+        await session.execute(
+            delete(PayerNarrative).where(
+                PayerNarrative.extraction_result_id.in_(old_extractions)
+            )
+        )
+        # Delete old extraction results
+        await session.execute(
+            delete(ExtractionResult).where(
+                ExtractionResult.ingestion_job_id.in_(
+                    select(IngestionJob.id)
+                    .where(IngestionJob.created_at < cutoff)
+                    .where(IngestionJob.status == "completed")
+                )
+            )
+        )
+        # Delete old jobs
+        result = await session.execute(
+            delete(IngestionJob)
+            .where(IngestionJob.created_at < cutoff)
+            .where(IngestionJob.status == "completed")
+        )
+        if result.rowcount > 0:
+            await session.commit()
+            logger.info("Purged %d expired jobs (>%d days)", result.rowcount, settings.data_retention_days)
 
 
 @app.get("/health")

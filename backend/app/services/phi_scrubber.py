@@ -91,11 +91,27 @@ def _presidio_scrub(text: str) -> tuple[str, int]:
 # --- Public API ---
 
 
+class ScrubResult:
+    """Result of PHI scrubbing with statistics."""
+
+    def __init__(self, text: ScrubbedText, regex_count: int, presidio_count: int):
+        self.text = text
+        self.regex_count = regex_count
+        self.presidio_count = presidio_count
+        self.total_redactions = regex_count + presidio_count
+
+
 def scrub_text(text: str) -> ScrubbedText:
     """Remove PHI from text using regex + Presidio dual-pass approach.
 
     Returns a ScrubbedText instance that can be safely passed to LLM services.
     """
+    result = scrub_text_with_stats(text)
+    return result.text
+
+
+def scrub_text_with_stats(text: str) -> ScrubResult:
+    """Remove PHI and return scrubbed text with redaction statistics."""
     # Pass 1: Regex (fast, deterministic)
     text, regex_count = _regex_scrub(text)
 
@@ -107,4 +123,4 @@ def scrub_text(text: str) -> ScrubbedText:
         logger.info("PHI scrubber removed %d entities (regex=%d, presidio=%d)",
                      total, regex_count, presidio_count)
 
-    return ScrubbedText(text)
+    return ScrubResult(ScrubbedText(text), regex_count, presidio_count)

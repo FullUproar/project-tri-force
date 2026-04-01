@@ -102,7 +102,7 @@ async def test_scrubber_called_before_llm():
     original_scrub = None
     original_extract = None
 
-    with patch("app.api.v1.ingest.scrub_text") as mock_scrub, \
+    with patch("app.api.v1.ingest.scrub_text_with_stats") as mock_scrub, \
          patch("app.api.v1.ingest.extract_prior_auth_data", new_callable=AsyncMock) as mock_extract:
 
         def track_scrub(text):
@@ -111,7 +111,8 @@ async def test_scrubber_called_before_llm():
             call_counter += 1
             scrub_order = call_counter
             from app.models.schemas import ScrubbedText
-            return ScrubbedText(text)
+            from app.services.phi_scrubber import ScrubResult
+            return ScrubResult(ScrubbedText(text), 0, 0)
 
         mock_scrub.side_effect = track_scrub
         mock_extract.return_value = MOCK_EXTRACTION

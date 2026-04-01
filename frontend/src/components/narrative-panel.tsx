@@ -74,9 +74,17 @@ export function NarrativePanel({ narrative, extractionId, onRegenerate, isRegene
         </div>
       </div>
 
-      <div className="prose prose-sm max-w-none text-sm leading-relaxed whitespace-pre-wrap bg-[var(--muted)] p-4 rounded-md">
-        {narrative.narrative_text}
-      </div>
+      <div
+        className="prose prose-sm max-w-none text-sm leading-relaxed bg-[var(--muted)] p-4 rounded-md"
+        dangerouslySetInnerHTML={{
+          __html: narrative.narrative_text
+            .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+            .replace(/\n\n/g, "</p><p>")
+            .replace(/\n/g, "<br>")
+            .replace(/^/, "<p>")
+            .replace(/$/, "</p>"),
+        }}
+      />
     </div>
   );
 }
