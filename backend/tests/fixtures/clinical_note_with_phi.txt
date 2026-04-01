@@ -1,0 +1,20 @@
+Patient: John A. Smith (DOB: 03/15/1959)
+MRN: 789012
+SSN: 123-45-6789
+Phone: (555) 123-4567
+Email: john.smith@email.com
+Address: 123 Main Street, Springfield, IL 62701
+
+Referring Physician: Dr. Jane Wilson
+Institution: Springfield Orthopaedic Associates
+
+CONSULTATION NOTE:
+Dr. Wilson referred this 67-year-old male for evaluation of right knee pain.
+Patient reports progressive worsening over the past 2 years.
+Has tried NSAIDs (ibuprofen 800mg TID), physical therapy for 6 weeks,
+and one cortisone injection with only temporary relief.
+
+Radiographs show bone-on-bone medial compartment with varus deformity.
+Diagnosis: M17.11 Primary OA right knee.
+
+Recommend right total knee arthroplasty.

@@ -1,0 +1,104 @@
+"use client";
+
+import { useState, useCallback } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { FileDropzone } from "@/components/file-dropzone";
+import { ProcessingStatus } from "@/components/processing-status";
+import { PriorAuthForm } from "@/components/prior-auth-form";
+import { NarrativePanel } from "@/components/narrative-panel";
+import { useFileUpload } from "@/hooks/use-file-upload";
+import { getJobStatus, generateNarrative, type NarrativeResponse } from "@/lib/api";
+
+export default function Dashboard() {
+  const { uploads, uploadFile } = useFileUpload();
+  const [activeJobId, setActiveJobId] = useState<string | null>(null);
+  const [narrative, setNarrative] = useState<NarrativeResponse | null>(null);
+
+  // Poll job status when we have an active processing job
+  const { data: jobStatus } = useQuery({
+    queryKey: ["job", activeJobId],
+    queryFn: () => getJobStatus(activeJobId!),
+    enabled: !!activeJobId,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      if (status === "completed" || status === "failed") return false;
+      return 2000;
+    },
+  });
+
+  const narrativeMutation = useMutation({
+    mutationFn: generateNarrative,
+    onSuccess: (data) => setNarrative(data),
+  });
+
+  const handleFileDrop = useCallback(
+    async (file: File) => {
+      const response = await uploadFile(file);
+      if (response) {
+        setActiveJobId(response.job_id);
+        setNarrative(null);
+      }
+    },
+    [uploadFile]
+  );
+
+  const handleGenerateNarrative = useCallback(
+    (extractionId: string) => {
+      narrativeMutation.mutate(extractionId);
+    },
+    [narrativeMutation]
+  );
+
+  const extraction = jobStatus?.extraction_result || null;
+
+  return (
+    <div className="min-h-screen">
+      {/* Header */}
+      <header className="border-b border-[var(--border)] px-6 py-4">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold">Tri-Force</h1>
+            <p className="text-xs text-[var(--muted-foreground)]">
+              ASC Prior Authorization Agent
+            </p>
+          </div>
+          <span className="text-xs px-2 py-1 bg-[var(--muted)] rounded">v0.1.0</span>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto p-6">
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+          {/* Left Column: Upload + Status */}
+          <div className="lg:col-span-2 space-y-4">
+            <h2 className="text-lg font-bold">Clinical Documents</h2>
+            <FileDropzone onFileDrop={handleFileDrop} uploads={uploads} />
+            <ProcessingStatus jobId={activeJobId} />
+
+            {jobStatus?.status === "failed" && (
+              <div className="p-3 rounded-lg bg-red-50 border border-red-200">
+                <p className="text-sm text-red-700">{jobStatus.error_message || "Processing failed"}</p>
+              </div>
+            )}
+          </div>
+
+          {/* Right Column: Form + Narrative */}
+          <div className="lg:col-span-3 space-y-6">
+            <PriorAuthForm
+              extraction={extraction}
+              onGenerateNarrative={handleGenerateNarrative}
+              isGenerating={narrativeMutation.isPending}
+            />
+            <NarrativePanel
+              narrative={narrative}
+              onRegenerate={() => {
+                if (extraction?.id) narrativeMutation.mutate(extraction.id);
+              }}
+              isRegenerating={narrativeMutation.isPending}
+            />
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
