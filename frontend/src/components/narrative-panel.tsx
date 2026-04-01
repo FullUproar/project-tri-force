@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Copy, Check, RefreshCw, Download } from "lucide-react";
+import { Copy, Check, RefreshCw, Download, Link2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { exportNarrativePdf, type NarrativeResponse } from "@/lib/api";
 
@@ -14,6 +14,7 @@ interface NarrativePanelProps {
 
 export function NarrativePanel({ narrative, extractionId, onRegenerate, isRegenerating }: NarrativePanelProps) {
   const [copied, setCopied] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
   const [downloading, setDownloading] = useState(false);
 
   if (!narrative) return null;
@@ -44,6 +45,24 @@ export function NarrativePanel({ narrative, extractionId, onRegenerate, isRegene
           <span className="text-xs text-[var(--muted-foreground)]">
             {narrative.model_used} ({narrative.prompt_version})
           </span>
+          <button
+            onClick={async () => {
+              if (!extractionId) return;
+              const url = `${window.location.origin}/api/proxy/api/v1/share/${extractionId}`;
+              await navigator.clipboard.writeText(url);
+              setLinkCopied(true);
+              setTimeout(() => setLinkCopied(false), 2000);
+            }}
+            disabled={!extractionId}
+            className="p-1.5 rounded hover:bg-[var(--muted)] transition-colors disabled:opacity-50"
+            title="Copy share link"
+          >
+            {linkCopied ? (
+              <Check className="w-4 h-4 text-[var(--success)]" />
+            ) : (
+              <Link2 className="w-4 h-4" />
+            )}
+          </button>
           <button
             onClick={handleDownload}
             disabled={downloading || !extractionId}

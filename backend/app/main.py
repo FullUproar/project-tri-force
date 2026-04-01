@@ -96,6 +96,11 @@ async def add_request_id(request: Request, call_next):
 
 app.include_router(api_v1_router, prefix="/api/v1")
 
+# Public share endpoint (no auth — UUID is the capability token)
+from app.api.v1.share import router as share_router
+
+app.include_router(share_router, prefix="/api/v1", tags=["share"])
+
 
 @app.get("/health")
 async def health(db: AsyncSession = Depends(get_db)):
