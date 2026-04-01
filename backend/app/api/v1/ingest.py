@@ -219,7 +219,33 @@ async def ingest_robotic_report(
     )
 
 
-# --- Job Status ---
+# --- Job List & Status ---
+
+
+@router.get("/jobs")
+async def list_jobs(
+    limit: int = 20,
+    offset: int = 0,
+    db: AsyncSession = Depends(get_db),
+):
+    """List all ingestion jobs, most recent first."""
+    result = await db.execute(
+        select(IngestionJob)
+        .order_by(IngestionJob.created_at.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    jobs = result.scalars().all()
+    return [
+        {
+            "job_id": str(job.id),
+            "status": job.status,
+            "source_type": job.source_type,
+            "original_filename": job.original_filename,
+            "created_at": job.created_at.isoformat() if job.created_at else None,
+        }
+        for job in jobs
+    ]
 
 
 @router.get("/jobs/{job_id}", response_model=JobStatusResponse)
