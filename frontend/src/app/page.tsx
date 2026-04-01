@@ -57,7 +57,7 @@ export default function Dashboard() {
       <header className="border-b border-[var(--border)] px-6 py-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold">Tri-Force</h1>
+            <h1 className="text-xl font-bold">CortaLoom</h1>
             <p className="text-xs text-[var(--muted-foreground)]">
               ASC Prior Authorization Agent
             </p>

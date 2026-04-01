@@ -1,7 +1,7 @@
 [project]
 name = "triforce-backend"
 version = "0.1.0"
-description = "Tri-Force: Universal B2B AI Data Middleware for Clinical Data Normalization"
+description = "CortaLoom: Universal B2B AI Data Middleware for Clinical Data Normalization"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115",

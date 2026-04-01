@@ -3,7 +3,7 @@ import "./globals.css";
 import { Providers } from "./providers";
 
 export const metadata: Metadata = {
-  title: "Tri-Force | ASC Prior Auth Agent",
+  title: "CortaLoom | ASC Prior Auth Agent",
   description: "AI-powered clinical data extraction and prior authorization for orthopaedic ASCs",
 };
 
