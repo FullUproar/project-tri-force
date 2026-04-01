@@ -7,6 +7,7 @@ import { DemoButton } from "@/components/demo-button";
 import { FileDropzone } from "@/components/file-dropzone";
 import { JobHistory } from "@/components/job-history";
 import { ProcessingStatus } from "@/components/processing-status";
+import { TimeSaved } from "@/components/time-saved";
 import { PriorAuthForm } from "@/components/prior-auth-form";
 import { FormSkeleton } from "@/components/skeleton";
 import { NarrativePanel } from "@/components/narrative-panel";
@@ -105,6 +106,11 @@ export default function Dashboard() {
                 setNarrative(null);
               }}
               activeJobId={activeJobId}
+            />
+
+            <TimeSaved
+              jobCreatedAt={jobStatus?.created_at || null}
+              isComplete={jobStatus?.status === "completed"}
             />
 
             {jobStatus?.status === "failed" && (

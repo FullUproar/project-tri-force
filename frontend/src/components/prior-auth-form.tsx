@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { cn } from "@/lib/utils";
 import { updateOutcome, type ExtractionResult, type PriorAuthOutcome } from "@/lib/api";
+import { getICD10Description } from "@/lib/icd10";
 
 const schema = z.object({
   diagnosis_code: z.string().min(1, "Required"),
@@ -81,6 +82,11 @@ export function PriorAuthForm({ extraction, onGenerateNarrative, isGenerating }:
             />
             {errors.diagnosis_code && (
               <p className="text-xs text-[var(--destructive)] mt-1">{errors.diagnosis_code.message}</p>
+            )}
+            {extraction?.diagnosis_code && getICD10Description(extraction.diagnosis_code) && (
+              <p className="text-xs text-blue-600 mt-1">
+                {getICD10Description(extraction.diagnosis_code)}
+              </p>
             )}
           </div>
 
