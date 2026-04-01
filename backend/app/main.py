@@ -1,21 +1,84 @@
 import uuid as uuid_mod
-from datetime import datetime, timezone
+from contextlib import asynccontextmanager
+from datetime import datetime, timedelta, timezone
 
 from fastapi import Depends, FastAPI, Request
-from sqlalchemy import select, text
+from sqlalchemy import delete, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.router import api_v1_router
+from app.config import settings
 from app.core.logging import logger, request_id_var, setup_logging
 from app.core.security import SecurityHeadersMiddleware, add_cors_middleware
 from app.dependencies import get_db
 
 setup_logging()
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Startup: recover stuck jobs, purge expired data. Shutdown: clean up."""
+    from app.core.db import async_session, engine
+    from app.models.database import ExtractionResult, IngestionJob, PayerNarrative
+
+    # --- Startup ---
+
+    # Recover stuck jobs
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=10)
+    async with async_session() as session:
+        result = await session.execute(
+            update(IngestionJob)
+            .where(IngestionJob.status == "processing")
+            .where(IngestionJob.created_at < cutoff)
+            .values(status="failed", error_message="Server restart — please resubmit")
+        )
+        if result.rowcount > 0:
+            await session.commit()
+            logger.info("Recovered %d stuck jobs", result.rowcount)
+
+    # Purge expired data
+    retention_cutoff = datetime.now(timezone.utc) - timedelta(days=settings.data_retention_days)
+    async with async_session() as session:
+        old_extractions = (
+            select(ExtractionResult.id)
+            .join(IngestionJob)
+            .where(IngestionJob.created_at < retention_cutoff)
+            .where(IngestionJob.status == "completed")
+        )
+        await session.execute(
+            delete(PayerNarrative).where(PayerNarrative.extraction_result_id.in_(old_extractions))
+        )
+        await session.execute(
+            delete(ExtractionResult).where(
+                ExtractionResult.ingestion_job_id.in_(
+                    select(IngestionJob.id)
+                    .where(IngestionJob.created_at < retention_cutoff)
+                    .where(IngestionJob.status == "completed")
+                )
+            )
+        )
+        result = await session.execute(
+            delete(IngestionJob)
+            .where(IngestionJob.created_at < retention_cutoff)
+            .where(IngestionJob.status == "completed")
+        )
+        if result.rowcount > 0:
+            await session.commit()
+            logger.info("Purged %d expired jobs (>%d days)", result.rowcount, settings.data_retention_days)
+
+    logger.info("CortaLoom API started")
+    yield
+
+    # --- Shutdown ---
+    logger.info("CortaLoom API shutting down — cleaning up connections")
+    await engine.dispose()
+
+
 app = FastAPI(
     title="CortaLoom API",
     description="Universal B2B AI Data Middleware for Clinical Data Normalization",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 add_cors_middleware(app)
@@ -32,79 +95,6 @@ async def add_request_id(request: Request, call_next):
 
 
 app.include_router(api_v1_router, prefix="/api/v1")
-
-
-@app.on_event("startup")
-async def recover_stuck_jobs():
-    """Mark jobs stuck in 'processing' for >10 minutes as failed."""
-    from datetime import timedelta
-
-    from sqlalchemy import update
-
-    from app.core.db import async_session
-    from app.models.database import IngestionJob
-
-    cutoff = datetime.now(timezone.utc) - timedelta(minutes=10)
-    async with async_session() as session:
-        result = await session.execute(
-            update(IngestionJob)
-            .where(IngestionJob.status == "processing")
-            .where(IngestionJob.created_at < cutoff)
-            .values(status="failed", error_message="Server restart — please resubmit")
-        )
-        if result.rowcount > 0:
-            await session.commit()
-            logger.info("Recovered %d stuck jobs", result.rowcount)
-
-
-@app.on_event("startup")
-async def purge_expired_data():
-    """Delete completed jobs older than data_retention_days (HIPAA compliance)."""
-    from datetime import timedelta
-
-    from sqlalchemy import delete
-
-    from app.config import settings
-    from app.core.db import async_session
-    from app.models.database import (
-        ExtractionResult,
-        IngestionJob,
-        PayerNarrative,
-    )
-
-    cutoff = datetime.now(timezone.utc) - timedelta(days=settings.data_retention_days)
-    async with async_session() as session:
-        # Delete narratives for old extractions
-        old_extractions = (
-            select(ExtractionResult.id)
-            .join(IngestionJob)
-            .where(IngestionJob.created_at < cutoff)
-            .where(IngestionJob.status == "completed")
-        )
-        await session.execute(
-            delete(PayerNarrative).where(
-                PayerNarrative.extraction_result_id.in_(old_extractions)
-            )
-        )
-        # Delete old extraction results
-        await session.execute(
-            delete(ExtractionResult).where(
-                ExtractionResult.ingestion_job_id.in_(
-                    select(IngestionJob.id)
-                    .where(IngestionJob.created_at < cutoff)
-                    .where(IngestionJob.status == "completed")
-                )
-            )
-        )
-        # Delete old jobs
-        result = await session.execute(
-            delete(IngestionJob)
-            .where(IngestionJob.created_at < cutoff)
-            .where(IngestionJob.status == "completed")
-        )
-        if result.rowcount > 0:
-            await session.commit()
-            logger.info("Purged %d expired jobs (>%d days)", result.rowcount, settings.data_retention_days)
 
 
 @app.get("/health")
