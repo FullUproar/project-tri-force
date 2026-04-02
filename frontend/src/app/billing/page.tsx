@@ -1,16 +1,117 @@
 "use client";
 
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { CreditCard, CheckCircle2, AlertCircle, ExternalLink } from "lucide-react";
-import { NavBar } from "@/components/nav-bar";
+import { CheckCircle2, AlertCircle, ExternalLink, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { NavBar } from "@/components/nav-bar";
 
 const API_BASE = "/api/proxy/api/v1";
 
 interface BillingStatus {
   organization: string;
   subscription_status: string;
+  subscription_tier: string | null;
   stripe_customer_id: string | null;
+  usage: {
+    extractions_used: number;
+    extractions_included: number;
+    overage_count: number;
+    overage_cost: number;
+  };
+}
+
+interface TierInfo {
+  name: string;
+  amount: number;
+  included_extractions: number;
+  description: string;
+  overage_rate: number;
+}
+
+const TIER_ORDER = ["starter", "professional", "enterprise"];
+
+function TierCard({
+  tierId,
+  tier,
+  isActive,
+  onSelect,
+  isLoading,
+}: {
+  tierId: string;
+  tier: TierInfo;
+  isActive: boolean;
+  onSelect: (tier: string) => void;
+  isLoading: boolean;
+}) {
+  const isPro = tierId === "professional";
+
+  return (
+    <div
+      className={cn(
+        "p-6 border rounded-xl space-y-4 relative",
+        isActive
+          ? "border-green-400 bg-green-50/50 ring-2 ring-green-200"
+          : isPro
+            ? "border-blue-400 bg-blue-50/30"
+            : "border-[var(--border)]"
+      )}
+    >
+      {isPro && !isActive && (
+        <span className="absolute -top-3 left-4 px-2 py-0.5 bg-blue-600 text-white text-xs font-bold rounded">
+          Most Popular
+        </span>
+      )}
+      {isActive && (
+        <span className="absolute -top-3 left-4 px-2 py-0.5 bg-green-600 text-white text-xs font-bold rounded">
+          Current Plan
+        </span>
+      )}
+      <div>
+        <h3 className="font-bold text-lg">{tier.name}</h3>
+        <p className="text-xs text-[var(--muted-foreground)]">{tier.description}</p>
+      </div>
+      <div className="flex items-baseline gap-1">
+        <span className="text-3xl font-bold">${tier.amount}</span>
+        <span className="text-sm text-[var(--muted-foreground)]">/mo</span>
+      </div>
+      <ul className="space-y-1.5 text-sm">
+        <li className="flex items-center gap-2">
+          <Zap className="w-3.5 h-3.5 text-blue-500" />
+          <strong>{tier.included_extractions}</strong> extractions/month
+        </li>
+        <li className="flex items-center gap-2">
+          <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
+          AI narrative generation
+        </li>
+        <li className="flex items-center gap-2">
+          <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
+          PDF export + share links
+        </li>
+        <li className="flex items-center gap-2">
+          <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
+          HIPAA compliant
+        </li>
+        <li className="text-xs text-[var(--muted-foreground)]">
+          + ${tier.overage_rate.toFixed(2)}/extraction over limit
+        </li>
+      </ul>
+      {!isActive && (
+        <button
+          onClick={() => onSelect(tierId)}
+          disabled={isLoading}
+          className={cn(
+            "w-full py-2.5 rounded-lg font-semibold text-sm",
+            isPro
+              ? "bg-blue-600 text-white hover:bg-blue-700"
+              : "bg-[var(--primary)] text-[var(--primary-foreground)] hover:opacity-90",
+            "disabled:opacity-50"
+          )}
+        >
+          {isLoading ? "Redirecting..." : "Subscribe"}
+        </button>
+      )}
+    </div>
+  );
 }
 
 export default function BillingPage() {
@@ -18,22 +119,32 @@ export default function BillingPage() {
     queryKey: ["billing-status"],
     queryFn: async () => {
       const res = await fetch(`${API_BASE}/billing/status`);
-      if (!res.ok) throw new Error("Failed to fetch billing");
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+  });
+
+  const { data: tiers } = useQuery<Record<string, TierInfo>>({
+    queryKey: ["billing-tiers"],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE}/billing/tiers`);
+      if (!res.ok) throw new Error("Failed");
       return res.json();
     },
   });
 
   const checkoutMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (tier: string) => {
       const res = await fetch(`${API_BASE}/billing/checkout`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          tier,
           success_url: `${window.location.origin}/billing?status=success`,
           cancel_url: `${window.location.origin}/billing?status=cancel`,
         }),
       });
-      if (!res.ok) throw new Error("Failed to create checkout");
+      if (!res.ok) throw new Error("Failed");
       return res.json();
     },
     onSuccess: (data) => {
@@ -44,7 +155,7 @@ export default function BillingPage() {
   const portalMutation = useMutation({
     mutationFn: async () => {
       const res = await fetch(`${API_BASE}/billing/portal`, { method: "POST" });
-      if (!res.ok) throw new Error("Failed to open portal");
+      if (!res.ok) throw new Error("Failed");
       return res.json();
     },
     onSuccess: (data) => {
@@ -52,90 +163,81 @@ export default function BillingPage() {
     },
   });
 
-  const status = billing?.subscription_status || "none";
-  const isActive = status === "active" || status === "trialing";
-
-  const statusConfig: Record<string, { icon: React.ElementType; color: string; label: string }> = {
-    active: { icon: CheckCircle2, color: "text-green-600 bg-green-50 border-green-200", label: "Active" },
-    trialing: { icon: CheckCircle2, color: "text-blue-600 bg-blue-50 border-blue-200", label: "Trial" },
-    past_due: { icon: AlertCircle, color: "text-yellow-600 bg-yellow-50 border-yellow-200", label: "Past Due" },
-    canceled: { icon: AlertCircle, color: "text-red-600 bg-red-50 border-red-200", label: "Canceled" },
-    none: { icon: CreditCard, color: "text-gray-600 bg-gray-50 border-gray-200", label: "No Subscription" },
-  };
-
-  const config = statusConfig[status] || statusConfig.none;
-  const StatusIcon = config.icon;
+  const isActive = billing?.subscription_status === "active" || billing?.subscription_status === "trialing";
+  const usage = billing?.usage;
 
   return (
     <div className="min-h-screen bg-[var(--background)]">
       <NavBar />
 
-      <main className="max-w-3xl mx-auto p-6 space-y-6">
-        {/* Current Status */}
-        <div className={cn("p-6 rounded-xl border flex items-center gap-4", config.color)}>
-          <StatusIcon className="w-8 h-8 flex-shrink-0" />
-          <div>
-            <p className="font-bold text-lg">{config.label}</p>
-            {billing && <p className="text-sm opacity-80">{billing.organization}</p>}
-          </div>
-        </div>
-
-        {/* Pricing Card */}
-        {!isActive && (
-          <div className="p-6 border border-[var(--border)] rounded-xl space-y-4">
-            <div>
-              <h2 className="text-lg font-bold">CortaLoom ASC Plan</h2>
-              <p className="text-sm text-[var(--muted-foreground)]">
-                Everything your ASC needs for AI-powered prior authorization
-              </p>
+      <main className="max-w-5xl mx-auto p-6 space-y-8">
+        {/* Usage Bar (active subscribers) */}
+        {isActive && usage && (
+          <div className="p-5 border border-[var(--border)] rounded-xl space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="font-bold">Monthly Usage</h2>
+              <span className="text-sm text-[var(--muted-foreground)]">
+                {usage.extractions_used} / {usage.extractions_included} extractions
+              </span>
             </div>
-            <div className="flex items-baseline gap-1">
-              <span className="text-4xl font-bold">$299</span>
-              <span className="text-[var(--muted-foreground)]">/month per location</span>
+            <div className="w-full bg-[var(--muted)] rounded-full h-3">
+              <div
+                className={cn(
+                  "h-3 rounded-full transition-all",
+                  usage.extractions_used > usage.extractions_included
+                    ? "bg-red-500"
+                    : usage.extractions_used > usage.extractions_included * 0.8
+                      ? "bg-yellow-500"
+                      : "bg-green-500"
+                )}
+                style={{
+                  width: `${Math.min(100, (usage.extractions_used / Math.max(1, usage.extractions_included)) * 100)}%`,
+                }}
+              />
             </div>
-            <ul className="space-y-2 text-sm">
-              {[
-                "Unlimited prior auth extractions",
-                "AI-generated payer narratives",
-                "PDF export for payer submission",
-                "DICOM, PDF, and clinical note ingestion",
-                "PHI scrubbing (HIPAA compliant)",
-                "Outcome tracking and analytics",
-                "Dedicated support",
-              ].map((feature) => (
-                <li key={feature} className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
-                  {feature}
-                </li>
-              ))}
-            </ul>
-            <button
-              onClick={() => checkoutMutation.mutate()}
-              disabled={checkoutMutation.isPending}
-              className="w-full py-3 bg-[var(--primary)] text-[var(--primary-foreground)] rounded-lg font-semibold hover:opacity-90 disabled:opacity-50"
-            >
-              {checkoutMutation.isPending ? "Redirecting to Stripe..." : "Subscribe Now"}
-            </button>
-          </div>
-        )}
-
-        {/* Manage Subscription */}
-        {isActive && (
-          <div className="p-6 border border-[var(--border)] rounded-xl space-y-4">
-            <h2 className="font-bold">Manage Subscription</h2>
-            <p className="text-sm text-[var(--muted-foreground)]">
-              Update payment method, view invoices, or cancel your subscription.
-            </p>
+            {usage.overage_count > 0 && (
+              <div className="flex items-center gap-2 text-sm text-yellow-700 bg-yellow-50 p-2 rounded-md">
+                <AlertCircle className="w-4 h-4" />
+                {usage.overage_count} overage extractions (${usage.overage_cost.toFixed(2)} additional)
+              </div>
+            )}
             <button
               onClick={() => portalMutation.mutate()}
               disabled={portalMutation.isPending}
-              className="flex items-center gap-2 px-4 py-2 border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--muted)]"
+              className="flex items-center gap-2 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
             >
-              <ExternalLink className="w-4 h-4" />
-              {portalMutation.isPending ? "Opening..." : "Open Billing Portal"}
+              <ExternalLink className="w-3.5 h-3.5" />
+              {portalMutation.isPending ? "Opening..." : "Manage subscription in Stripe"}
             </button>
           </div>
         )}
+
+        {/* Tier Cards */}
+        <div>
+          <h2 className="text-xl font-bold mb-1">
+            {isActive ? "Your Plan" : "Choose Your Plan"}
+          </h2>
+          <p className="text-sm text-[var(--muted-foreground)] mb-6">
+            All plans include HIPAA-compliant AI extraction, narrative generation, PDF export, and analytics.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {tiers &&
+              TIER_ORDER.map((tierId) => {
+                const tier = tiers[tierId];
+                if (!tier) return null;
+                return (
+                  <TierCard
+                    key={tierId}
+                    tierId={tierId}
+                    tier={tier}
+                    isActive={billing?.subscription_tier === tierId}
+                    onSelect={(t) => checkoutMutation.mutate(t)}
+                    isLoading={checkoutMutation.isPending}
+                  />
+                );
+              })}
+          </div>
+        </div>
       </main>
     </div>
   );

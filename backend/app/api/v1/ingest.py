@@ -88,6 +88,13 @@ async def _process_text_ingestion(job_id: uuid.UUID, text: str):
             await db.commit()
             await db.refresh(result)
 
+            # Record usage for billing
+            if job and job.tenant_id:
+                from app.api.v1.billing import record_extraction_usage
+                tenant_org = await db.get(Organization, job.tenant_id)
+                if tenant_org:
+                    await record_extraction_usage(db, tenant_org)
+
             await log_event(
                 db, "extract", "extraction_result", result.id,
                 metadata={

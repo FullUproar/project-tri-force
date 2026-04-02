@@ -30,6 +30,9 @@ class Organization(Base):
     stripe_customer_id: Mapped[str | None] = mapped_column(String(100))
     subscription_status: Mapped[str | None] = mapped_column(String(20))  # active, past_due, canceled, trialing
     verticals: Mapped[list | None] = mapped_column(JSONB)  # ["ortho"], ["ortho", "spine"], etc.
+    subscription_tier: Mapped[str | None] = mapped_column(String(20))  # starter, professional, enterprise
+    monthly_extraction_count: Mapped[int] = mapped_column(Integer, default=0)
+    billing_cycle_start: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     api_keys: Mapped[list["ApiKey"]] = relationship(back_populates="organization")
 
