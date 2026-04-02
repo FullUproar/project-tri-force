@@ -29,6 +29,48 @@ async def get_ai_disclosure():
     return {"disclosure": AI_DISCLOSURE_TEXT}
 
 
+class OverrideFieldsRequest(BaseModel):
+    diagnosis_code: str | None = None
+    conservative_treatments_failed: list[str] | None = None
+    implant_type_requested: str | None = None
+    robotic_assistance_required: bool | None = None
+    clinical_justification: str | None = None
+
+
+@router.patch("/extraction/{extraction_id}")
+async def override_extraction_fields(
+    extraction_id: uuid.UUID,
+    body: OverrideFieldsRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Save user overrides to extraction fields and log what changed (QA audit trail)."""
+    ext = await db.get(ExtractionResult, extraction_id)
+    if not ext:
+        raise HTTPException(status_code=404, detail="Extraction result not found")
+
+    changes = {}
+    for field_name, new_value in body.model_dump(exclude_none=True).items():
+        old_value = getattr(ext, field_name)
+        if old_value != new_value:
+            changes[field_name] = {"old": old_value, "new": new_value}
+            setattr(ext, field_name, new_value)
+
+    if changes:
+        from app.core.audit import log_event
+
+        await log_event(
+            db, "user_override", "extraction_result", extraction_id,
+            metadata={"fields_changed": list(changes.keys()), "changes": changes},
+        )
+        await db.commit()
+
+    return {
+        "status": "ok",
+        "extraction_id": str(extraction_id),
+        "fields_overridden": list(changes.keys()),
+    }
+
+
 @router.post("/extraction/{extraction_id}/narrative", response_model=NarrativeResponse)
 async def create_narrative(
     extraction_id: uuid.UUID,

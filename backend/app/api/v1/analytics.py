@@ -67,3 +67,70 @@ async def get_usage_stats(
         "avg_confidence": round(avg_confidence.scalar() or 0, 2),
         "estimated_time_saved_minutes": (extraction_count.scalar() or 0) * 44,
     }
+
+
+@router.get("/analytics/outcomes-by-diagnosis")
+async def get_outcomes_by_diagnosis(
+    db: AsyncSession = Depends(get_db),
+    tenant: Organization = Depends(get_current_tenant),
+):
+    """Outcome rates grouped by ICD-10 diagnosis code — the flywheel data."""
+    result = await db.execute(
+        select(
+            ExtractionResult.diagnosis_code,
+            ExtractionResult.outcome,
+            func.count().label("count"),
+        )
+        .where(ExtractionResult.tenant_id == tenant.id)
+        .where(ExtractionResult.outcome.is_not(None))
+        .where(ExtractionResult.diagnosis_code.is_not(None))
+        .group_by(ExtractionResult.diagnosis_code, ExtractionResult.outcome)
+    )
+    rows = result.all()
+
+    # Pivot into {diagnosis: {approved: N, denied: N, ...}}
+    data: dict = {}
+    for row in rows:
+        dx = row.diagnosis_code
+        if dx not in data:
+            data[dx] = {"diagnosis_code": dx, "approved": 0, "denied": 0, "pending": 0, "appealed": 0, "total": 0}
+        data[dx][row.outcome] = row.count
+        data[dx]["total"] += row.count
+
+    # Calculate approval rates
+    for dx_data in data.values():
+        total = dx_data["total"]
+        dx_data["approval_rate"] = round(dx_data["approved"] / total * 100, 1) if total > 0 else None
+
+    return sorted(data.values(), key=lambda x: x["total"], reverse=True)
+
+
+@router.get("/analytics/overrides")
+async def get_override_stats(
+    db: AsyncSession = Depends(get_db),
+    tenant: Organization = Depends(get_current_tenant),
+):
+    """Count of user overrides — measures AI accuracy vs. human corrections."""
+    from app.models.database import AuditLog
+
+    result = await db.execute(
+        select(func.count())
+        .select_from(AuditLog)
+        .where(AuditLog.tenant_id == tenant.id)
+        .where(AuditLog.action == "user_override")
+    )
+    override_count = result.scalar() or 0
+
+    total_extractions = await db.execute(
+        select(func.count())
+        .select_from(ExtractionResult)
+        .where(ExtractionResult.tenant_id == tenant.id)
+    )
+    total = total_extractions.scalar() or 0
+
+    return {
+        "total_overrides": override_count,
+        "total_extractions": total,
+        "override_rate": round(override_count / total * 100, 1) if total > 0 else 0,
+        "ai_accuracy_proxy": round((1 - override_count / total) * 100, 1) if total > 0 else 100,
+    }
