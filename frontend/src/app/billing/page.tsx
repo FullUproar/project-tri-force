@@ -1,6 +1,7 @@
 "use client";
 
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, AlertCircle, ExternalLink, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NavBar } from "@/components/nav-bar";
@@ -12,11 +13,14 @@ interface BillingStatus {
   subscription_status: string;
   subscription_tier: string | null;
   stripe_customer_id: string | null;
+  overage_budget_cap: number | null;
   usage: {
     extractions_used: number;
     extractions_included: number;
     overage_count: number;
     overage_cost: number;
+    budget_remaining: number | null;
+    budget_exhausted: boolean;
   };
 }
 
@@ -29,6 +33,71 @@ interface TierInfo {
 }
 
 const TIER_ORDER = ["starter", "professional", "enterprise"];
+
+function BudgetCapControl({ currentCap }: { currentCap: number | null }) {
+  const [editing, setEditing] = useState(false);
+  const [capValue, setCapValue] = useState(currentCap?.toString() || "");
+  const queryClient = useQueryClient();
+
+  const saveMutation = useMutation({
+    mutationFn: async (cap: number | null) => {
+      const res = await fetch(`${API_BASE}/billing/budget`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ budget_cap: cap }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    onSuccess: () => {
+      setEditing(false);
+      queryClient.invalidateQueries({ queryKey: ["billing-status"] });
+    },
+  });
+
+  return (
+    <div className="p-3 bg-[var(--muted)] rounded-lg space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-medium">Monthly Overage Budget Cap</span>
+        {!editing && (
+          <button onClick={() => setEditing(true)} className="text-xs text-blue-600 hover:underline">
+            {currentCap ? "Edit" : "Set limit"}
+          </button>
+        )}
+      </div>
+      {!editing ? (
+        <p className="text-xs text-[var(--muted-foreground)]">
+          {currentCap ? `$${currentCap.toFixed(2)}/month — extractions blocked when reached` : "No limit set — overages are unlimited"}
+        </p>
+      ) : (
+        <div className="flex gap-2">
+          <div className="flex items-center gap-1 flex-1">
+            <span className="text-sm">$</span>
+            <input
+              value={capValue}
+              onChange={(e) => setCapValue(e.target.value)}
+              placeholder="e.g., 50.00"
+              className="flex-1 px-2 py-1 border border-[var(--border)] rounded text-sm bg-[var(--background)]"
+            />
+          </div>
+          <button
+            onClick={() => saveMutation.mutate(capValue ? parseFloat(capValue) : null)}
+            disabled={saveMutation.isPending}
+            className="px-3 py-1 bg-[var(--primary)] text-[var(--primary-foreground)] rounded text-xs font-medium"
+          >
+            Save
+          </button>
+          <button
+            onClick={() => { saveMutation.mutate(null); setCapValue(""); }}
+            className="px-3 py-1 border border-[var(--border)] rounded text-xs"
+          >
+            Remove
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function TierCard({
   tierId,
@@ -201,6 +270,9 @@ export default function BillingPage() {
                 {usage.overage_count} overage extractions (${usage.overage_cost.toFixed(2)} additional)
               </div>
             )}
+            {/* Budget Cap */}
+            <BudgetCapControl currentCap={billing?.overage_budget_cap ?? null} />
+
             <button
               onClick={() => portalMutation.mutate()}
               disabled={portalMutation.isPending}

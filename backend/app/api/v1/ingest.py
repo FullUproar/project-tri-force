@@ -55,6 +55,20 @@ async def _process_text_ingestion(job_id: uuid.UUID, text: str):
                 job.status = "processing"
                 await db.commit()
 
+            # Check budget cap before calling Claude (saves API costs)
+            if job and job.tenant_id:
+                from app.api.v1.billing import record_extraction_usage
+                tenant_org = await db.get(Organization, job.tenant_id)
+                if tenant_org:
+                    allowed = await record_extraction_usage(db, tenant_org)
+                    if not allowed:
+                        job = await db.get(IngestionJob, job_id)
+                        if job:
+                            job.status = "failed"
+                            job.error_message = "Monthly overage budget cap reached. Increase your budget at /billing or upgrade your plan."
+                            await db.commit()
+                        return
+
             scrub_result = scrub_text_with_stats(text)
             scrubbed = scrub_result.text
 
@@ -87,13 +101,6 @@ async def _process_text_ingestion(job_id: uuid.UUID, text: str):
             job.status = "completed"
             await db.commit()
             await db.refresh(result)
-
-            # Record usage for billing
-            if job and job.tenant_id:
-                from app.api.v1.billing import record_extraction_usage
-                tenant_org = await db.get(Organization, job.tenant_id)
-                if tenant_org:
-                    await record_extraction_usage(db, tenant_org)
 
             await log_event(
                 db, "extract", "extraction_result", result.id,

@@ -121,12 +121,37 @@ async def get_billing_status(
         "subscription_status": tenant.subscription_status or "none",
         "subscription_tier": tenant.subscription_tier,
         "stripe_customer_id": tenant.stripe_customer_id,
+        "overage_budget_cap": tenant.overage_budget_cap,
         "usage": {
             "extractions_used": used,
             "extractions_included": included,
             "overage_count": overage,
             "overage_cost": round(overage * 2.50, 2),
+            "budget_remaining": round(tenant.overage_budget_cap - (overage * 2.50), 2) if tenant.overage_budget_cap else None,
+            "budget_exhausted": (overage * 2.50) >= tenant.overage_budget_cap if tenant.overage_budget_cap else False,
         },
+    }
+
+
+class SetBudgetCapRequest(BaseModel):
+    budget_cap: float | None  # null = unlimited
+
+
+@router.post("/billing/budget")
+async def set_budget_cap(
+    body: SetBudgetCapRequest,
+    db: AsyncSession = Depends(get_db),
+    tenant: Organization = Depends(get_current_tenant),
+):
+    """Set or remove the monthly overage budget cap."""
+    if body.budget_cap is not None and body.budget_cap < 0:
+        raise HTTPException(status_code=400, detail="Budget cap must be positive or null")
+    tenant.overage_budget_cap = body.budget_cap
+    await db.commit()
+    return {
+        "status": "ok",
+        "overage_budget_cap": tenant.overage_budget_cap,
+        "message": f"Budget cap set to ${body.budget_cap:.2f}/month" if body.budget_cap else "Budget cap removed (unlimited)",
     }
 
 
@@ -149,28 +174,78 @@ async def create_billing_portal(
 # --- Usage Metering ---
 
 
-async def record_extraction_usage(db: AsyncSession, tenant: Organization):
-    """Increment extraction count and report overage to Stripe if needed."""
+async def record_extraction_usage(db: AsyncSession, tenant: Organization) -> bool:
+    """Increment extraction count, check budget cap, report overage, send alerts.
+
+    Returns True if the extraction is allowed, False if budget cap reached.
+    """
     from datetime import datetime, timezone
 
-    # Reset counter if new billing cycle
+    from app.core.audit import log_event
+
     now = datetime.now(timezone.utc)
+
+    # Reset counter + alert flags if new billing cycle
     if tenant.billing_cycle_start:
         days_since = (now - tenant.billing_cycle_start).days
         if days_since >= 30:
             tenant.monthly_extraction_count = 0
             tenant.billing_cycle_start = now
+            tenant.alert_at_80_sent = False
+            tenant.alert_at_100_sent = False
     else:
         tenant.billing_cycle_start = now
 
-    tenant.monthly_extraction_count = (tenant.monthly_extraction_count or 0) + 1
-    await db.commit()
-
-    # Check if over tier limit — report to Stripe meter
     tier_config = TIERS.get(tenant.subscription_tier or "", {})
     included = tier_config.get("included_extractions", 0)
+    current_count = (tenant.monthly_extraction_count or 0) + 1
+    overage = max(0, current_count - included)
+    overage_cost = overage * 2.50
 
-    if tenant.monthly_extraction_count > included and tenant.stripe_customer_id:
+    # Budget cap enforcement — block extraction if cap reached
+    if tenant.overage_budget_cap is not None and overage_cost > tenant.overage_budget_cap:
+        logger.warning(
+            "Budget cap reached for %s: overage $%.2f > cap $%.2f",
+            tenant.name, overage_cost, tenant.overage_budget_cap,
+        )
+        await log_event(
+            db, "budget_cap_reached", "organization", tenant.id,
+            metadata={"overage_cost": overage_cost, "budget_cap": tenant.overage_budget_cap},
+        )
+        await db.commit()
+        return False
+
+    # Allow extraction
+    tenant.monthly_extraction_count = current_count
+    await db.commit()
+
+    # --- Threshold alerts ---
+    usage_pct = (current_count / included * 100) if included > 0 else 100
+
+    # 80% alert
+    if usage_pct >= 80 and not tenant.alert_at_80_sent:
+        tenant.alert_at_80_sent = True
+        await db.commit()
+        await log_event(
+            db, "usage_alert_80pct", "organization", tenant.id,
+            metadata={"usage_pct": round(usage_pct, 1), "count": current_count, "limit": included},
+        )
+        logger.info("ALERT: %s at %.0f%% of extraction limit (%d/%d)",
+                     tenant.name, usage_pct, current_count, included)
+
+    # 100% alert
+    if usage_pct >= 100 and not tenant.alert_at_100_sent:
+        tenant.alert_at_100_sent = True
+        await db.commit()
+        await log_event(
+            db, "usage_alert_100pct", "organization", tenant.id,
+            metadata={"usage_pct": round(usage_pct, 1), "count": current_count, "limit": included},
+        )
+        logger.info("ALERT: %s has reached extraction limit (%d/%d) — overages begin",
+                     tenant.name, current_count, included)
+
+    # Report overage to Stripe meter
+    if current_count > included and tenant.stripe_customer_id:
         try:
             stripe.billing.MeterEvent.create(
                 event_name=STRIPE_METER_EVENT_NAME,
@@ -181,10 +256,12 @@ async def record_extraction_usage(db: AsyncSession, tenant: Organization):
             )
             logger.info(
                 "Reported overage extraction to Stripe for %s (count=%d, limit=%d)",
-                tenant.name, tenant.monthly_extraction_count, included,
+                tenant.name, current_count, included,
             )
         except Exception as e:
             logger.error("Failed to report Stripe meter event: %s", str(e))
+
+    return True
 
 
 # --- Webhook ---

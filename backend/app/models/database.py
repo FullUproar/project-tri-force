@@ -33,6 +33,9 @@ class Organization(Base):
     subscription_tier: Mapped[str | None] = mapped_column(String(20))  # starter, professional, enterprise
     monthly_extraction_count: Mapped[int] = mapped_column(Integer, default=0)
     billing_cycle_start: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    overage_budget_cap: Mapped[float | None] = mapped_column(Float)  # Max overage spend in $ (null = unlimited)
+    alert_at_80_sent: Mapped[bool] = mapped_column(Boolean, default=False)  # Reset each billing cycle
+    alert_at_100_sent: Mapped[bool] = mapped_column(Boolean, default=False)
 
     api_keys: Mapped[list["ApiKey"]] = relationship(back_populates="organization")
 
