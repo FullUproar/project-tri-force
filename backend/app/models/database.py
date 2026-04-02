@@ -155,6 +155,27 @@ class ClinicalNoteEmbedding(Base):
     embedding = mapped_column(Vector(1536))
 
 
+class PayerPolicy(Base):
+    __tablename__ = "payer_policies"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    payer: Mapped[str] = mapped_column(String(50))  # UHC, Aetna, BCBS, Cigna, Humana
+    procedure: Mapped[str] = mapped_column(String(100))  # Knee Replacement, Lumbar Fusion
+    criteria: Mapped[dict] = mapped_column(JSONB)  # Structured requirements
+    source_url: Mapped[str | None] = mapped_column(Text)
+    source_hash: Mapped[str | None] = mapped_column(String(64))  # SHA-256 for change detection
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    effective_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    verified_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    changelog: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(20), default="active")  # active, pending_review, deprecated
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
 class AuditLog(Base):
     __tablename__ = "audit_log"
 
