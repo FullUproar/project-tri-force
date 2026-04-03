@@ -81,16 +81,16 @@ export function LandingPage() {
             CortaLoom extracts ICD-10 codes, failed treatments, and implant details
             from clinical documents — so your team stops spending hours on prior auth.
           </p>
-          <div className="flex items-center justify-center gap-4 pt-2">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
             <Link
               href="/sign-up"
-              className="px-8 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-semibold hover:from-blue-700 hover:to-indigo-700"
+              className="w-full sm:w-auto px-8 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-semibold text-center hover:from-blue-700 hover:to-indigo-700"
             >
               Start Free Trial
             </Link>
             <Link
               href="/sign-in"
-              className="px-8 py-3 border border-[var(--border)] rounded-lg font-semibold hover:bg-[var(--muted)]"
+              className="w-full sm:w-auto px-8 py-3 border border-[var(--border)] rounded-lg font-semibold text-center hover:bg-[var(--muted)]"
             >
               Sign In
             </Link>

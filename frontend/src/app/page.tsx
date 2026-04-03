@@ -1,17 +1,13 @@
-"use client";
-
-import { useAuth } from "@clerk/nextjs";
+import { auth } from "@clerk/nextjs/server";
 import { LandingPage } from "@/components/landing-page";
-import { Dashboard } from "@/components/dashboard";
+import { DashboardWrapper } from "@/components/dashboard-wrapper";
 
-export default function RootPage() {
-  const { isSignedIn, isLoaded } = useAuth();
+export default async function RootPage() {
+  const { userId } = await auth();
 
-  if (!isLoaded) return null;
-
-  if (!isSignedIn) {
+  if (!userId) {
     return <LandingPage />;
   }
 
-  return <Dashboard />;
+  return <DashboardWrapper />;
 }
