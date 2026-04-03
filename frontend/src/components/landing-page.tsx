@@ -102,7 +102,7 @@ export function LandingPage() {
             </Link>
           </div>
           <p className="text-xs text-[var(--muted-foreground)]">
-            No credit card required. HIPAA compliant. Built by an ex-J&J/Velys engineer.
+            No credit card required. HIPAA compliant. Built by orthopaedic industry engineers.
           </p>
         </div>
       </section>
