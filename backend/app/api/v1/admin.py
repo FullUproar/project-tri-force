@@ -42,6 +42,22 @@ class OrgSummary(BaseModel):
     extraction_count: int
 
 
+@router.get("/me")
+async def get_current_org(
+    tenant: Organization = Depends(get_current_tenant),
+):
+    """Return the current tenant's organization info and role."""
+    return {
+        "id": str(tenant.id),
+        "name": tenant.name,
+        "is_admin": tenant.is_admin,
+        "subscription_tier": tenant.subscription_tier,
+        "subscription_status": tenant.subscription_status,
+        "verticals": tenant.verticals,
+        "baa_signed_at": tenant.baa_signed_at.isoformat() if tenant.baa_signed_at else None,
+    }
+
+
 @router.post("/admin/organizations", response_model=CreateOrgResponse)
 async def create_organization(
     body: CreateOrgRequest,

@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { DemoButton } from "@/components/demo-button";
+import { ASCHome } from "@/components/asc-home";
 import { FileDropzone } from "@/components/file-dropzone";
 import { JobHistory } from "@/components/job-history";
 import { NavBar } from "@/components/nav-bar";
@@ -45,11 +45,27 @@ Given failure of all reasonable conservative measures and severity of radiograph
 findings with significant functional limitation, recommend right total knee arthroplasty
 using the Stryker Triathlon Total Knee System with Mako robotic-assisted surgical technique.`;
 
+interface OrgInfo {
+  id: string;
+  name: string;
+  is_admin: boolean;
+}
+
 export function Dashboard() {
   const { uploads, uploadFile } = useFileUpload();
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [narrative, setNarrative] = useState<NarrativeResponse | null>(null);
   const [demoLoading, setDemoLoading] = useState(false);
+  const [showWorkSurface, setShowWorkSurface] = useState(false);
+
+  const { data: orgInfo } = useQuery<OrgInfo>({
+    queryKey: ["me"],
+    queryFn: async () => {
+      const res = await fetch("/api/proxy/api/v1/me");
+      if (!res.ok) return { id: "", name: "", is_admin: false };
+      return res.json();
+    },
+  });
 
   const { data: jobStatus } = useQuery({
     queryKey: ["job", activeJobId],
@@ -102,12 +118,29 @@ export function Dashboard() {
   const isProcessing = activeJobId && jobStatus?.status === "processing";
   const showWelcome = !activeJobId && uploads.length === 0;
 
+  // ASC users see their home dashboard first, then work surface when they click "New Case"
+  const isASC = orgInfo && !orgInfo.is_admin;
+  const showASCHome = isASC && !showWorkSurface && !activeJobId && uploads.length === 0;
+
   return (
     <div className="min-h-screen">
       <NavBar />
       <main className="max-w-7xl mx-auto p-6">
+        {showASCHome ? (
+          <div className="space-y-6">
+            <ASCHome />
+            <div className="text-center">
+              <button
+                onClick={() => setShowWorkSurface(true)}
+                className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-semibold hover:from-blue-700 hover:to-indigo-700"
+              >
+                Start New Prior Auth Case
+              </button>
+            </div>
+          </div>
+        ) : (
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-          {showWelcome && (
+          {showWelcome && !isASC && (
             <WelcomeHero onTryDemo={handleDemo} isDemoLoading={demoLoading} />
           )}
           <div className="lg:col-span-2 space-y-4">
@@ -167,6 +200,7 @@ export function Dashboard() {
             )}
           </div>
         </div>
+        )}
       </main>
     </div>
   );

@@ -36,6 +36,7 @@ class Organization(Base):
     overage_budget_cap: Mapped[float | None] = mapped_column(Float)  # Max overage spend in $ (null = unlimited)
     alert_at_80_sent: Mapped[bool] = mapped_column(Boolean, default=False)  # Reset each billing cycle
     alert_at_100_sent: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_admin: Mapped[bool] = mapped_column(Boolean, default=False)  # True for CortaLoom team, False for ASC customers
 
     api_keys: Mapped[list["ApiKey"]] = relationship(back_populates="organization")
 
