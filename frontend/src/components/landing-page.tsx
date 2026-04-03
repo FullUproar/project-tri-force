@@ -72,7 +72,13 @@ export function LandingPage() {
           <h1 className="text-4xl md:text-5xl font-bold leading-tight">
             AI Prior Authorization
             <br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">
+            <span
+              style={{
+                background: "linear-gradient(to right, #2563eb, #4f46e5)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+              }}
+            >
               for Orthopaedic ASCs
             </span>
           </h1>
