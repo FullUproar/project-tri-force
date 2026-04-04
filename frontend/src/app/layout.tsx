@@ -3,6 +3,7 @@ import { ClerkProvider } from "@clerk/nextjs";
 import type { Metadata } from "next";
 import "./globals.css";
 import { Providers } from "./providers";
+import { CookieConsent } from "@/components/cookie-consent";
 
 export const metadata: Metadata = {
   title: "CortaLoom | ASC Prior Auth Agent",
@@ -15,7 +16,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "CortaLoom — AI Prior Authorization for Ortho ASCs",
     description:
-      "Normalizes fragmented clinical data from Mako, Velys, and ROSA robotic systems into structured prior auth submissions. Built by an ex-J&J/Velys engineer.",
+      "Normalizes fragmented clinical data from Mako, Velys, and ROSA robotic systems into structured prior auth submissions. Built by orthopaedic industry engineers.",
     url: "https://cortaloom.ai",
     siteName: "CortaLoom",
     type: "website",
@@ -46,7 +47,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <ClerkProvider>
       <html lang="en">
         <body>
+          <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:px-4 focus:py-2 focus:bg-[var(--primary)] focus:text-[var(--primary-foreground)] focus:rounded-lg">
+            Skip to content
+          </a>
           <Providers>{children}</Providers>
+          <CookieConsent />
         </body>
       </html>
     </ClerkProvider>

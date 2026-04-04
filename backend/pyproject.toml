@@ -24,6 +24,7 @@ dependencies = [
     "reportlab",
     "stripe",
     "sentry-sdk[fastapi]",
+    "slowapi",
 ]
 
 [project.optional-dependencies]
@@ -33,6 +34,7 @@ dev = [
     "testcontainers[postgres]",
     "ruff",
     "mypy",
+    "pytest-cov",
 ]
 
 [tool.ruff]

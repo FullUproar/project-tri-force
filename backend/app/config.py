@@ -24,13 +24,22 @@ class Settings(BaseSettings):
     # Stripe Billing
     stripe_secret_key: SecretStr = SecretStr("")
     stripe_webhook_secret: SecretStr = SecretStr("")
-    stripe_price_id: str = ""  # Price ID for the $299/month ASC plan
+    stripe_price_id: str = ""  # Legacy — use tier-specific IDs below
+    stripe_price_id_starter: str = ""
+    stripe_price_id_professional: str = ""
+    stripe_price_id_enterprise: str = ""
+    stripe_overage_price_id: str = ""
+    stripe_meter_id: str = ""
 
     # Sentry
     sentry_dsn: str = ""
 
+    # Environment (development | staging | production)
+    environment: str = "development"
+
     # Data Retention
     data_retention_days: int = 90  # Auto-purge completed jobs older than this
+    audit_log_retention_days: int = 2555  # ~7 years for HIPAA compliance
 
     # Application
     log_level: str = "INFO"

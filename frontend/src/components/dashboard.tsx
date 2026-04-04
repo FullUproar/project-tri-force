@@ -125,7 +125,7 @@ export function Dashboard() {
   return (
     <div className="min-h-screen">
       <NavBar />
-      <main className="max-w-7xl mx-auto p-6">
+      <main id="main-content" className="max-w-7xl mx-auto p-6">
         {showASCHome ? (
           <div className="space-y-6">
             <ASCHome />
@@ -166,7 +166,7 @@ export function Dashboard() {
               isComplete={jobStatus?.status === "completed"}
             />
             {jobStatus?.status === "failed" && (
-              <div className="p-3 rounded-lg bg-red-50 border border-red-200 flex items-center justify-between">
+              <div role="alert" aria-live="assertive" className="p-3 rounded-lg bg-red-50 border border-red-200 flex items-center justify-between">
                 <p className="text-sm text-red-700">{jobStatus.error_message || "Processing failed"}</p>
                 <button
                   onClick={async () => { if (activeJobId) { await retryJob(activeJobId); setNarrative(null); } }}

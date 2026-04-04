@@ -25,6 +25,7 @@ from app.services.dicom_service import parse_dicom
 from app.services.pdf_parser import extract_text_from_pdf
 from app.services.phi_scrubber import scrub_text, scrub_text_with_stats
 from app.core.audit import log_event, log_event_standalone
+from app.core.rate_limit import RATE_AUTH_INGESTION, limiter
 from app.core.security import get_current_tenant
 from app.models.database import Organization
 from app.services.llm.extraction import extract_prior_auth_data
@@ -128,6 +129,7 @@ async def _process_text_ingestion(job_id: uuid.UUID, text: str):
 
 
 @router.post("/dicom", response_model=IngestionResponse)
+@limiter.limit(RATE_AUTH_INGESTION)
 async def ingest_dicom(
     request: Request,
     file: UploadFile,
@@ -215,7 +217,9 @@ async def _ingest_note(
 
 
 @router.post("/clinical-note", response_model=IngestionResponse)
+@limiter.limit(RATE_AUTH_INGESTION)
 async def ingest_clinical_note(
+    request: Request,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     tenant: Organization = Depends(get_current_tenant),
@@ -229,7 +233,9 @@ async def ingest_clinical_note(
 
 
 @router.post("/clinical-note/text", response_model=IngestionResponse)
+@limiter.limit(RATE_AUTH_INGESTION)
 async def ingest_clinical_note_text(
+    request: Request,
     body: ClinicalNoteRequest,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
@@ -240,7 +246,9 @@ async def ingest_clinical_note_text(
 
 
 @router.post("/robotic-report", response_model=IngestionResponse)
+@limiter.limit(RATE_AUTH_INGESTION)
 async def ingest_robotic_report(
+    request: Request,
     file: UploadFile,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),

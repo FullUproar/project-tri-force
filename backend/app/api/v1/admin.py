@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.security import get_current_tenant, hash_api_key
+from app.core.security import get_admin_tenant, get_current_tenant, hash_api_key
 from app.dependencies import get_db
 from app.models.database import ApiKey, ExtractionResult, IngestionJob, Organization
 
@@ -62,7 +62,7 @@ async def get_current_org(
 async def create_organization(
     body: CreateOrgRequest,
     db: AsyncSession = Depends(get_db),
-    _tenant: Organization = Depends(get_current_tenant),
+    _tenant: Organization = Depends(get_admin_tenant),
 ):
     """Create a new ASC organization with an API key."""
     org = Organization(name=body.name)
@@ -89,7 +89,7 @@ async def create_organization(
 @router.get("/admin/organizations")
 async def list_organizations(
     db: AsyncSession = Depends(get_db),
-    _tenant: Organization = Depends(get_current_tenant),
+    _tenant: Organization = Depends(get_admin_tenant),
 ):
     """List all organizations with usage stats."""
     orgs = await db.execute(select(Organization).order_by(Organization.created_at.desc()))
@@ -119,7 +119,7 @@ async def list_organizations(
 async def sign_baa(
     org_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    _tenant: Organization = Depends(get_current_tenant),
+    _tenant: Organization = Depends(get_admin_tenant),
 ):
     """Mark an organization's BAA as signed."""
     from datetime import datetime, timezone
@@ -137,7 +137,7 @@ async def sign_baa(
 @router.post("/admin/load-demo-data")
 async def load_demo_data(
     db: AsyncSession = Depends(get_db),
-    tenant: Organization = Depends(get_current_tenant),
+    tenant: Organization = Depends(get_admin_tenant),
 ):
     """Load synthetic demo cases into the current tenant's data."""
     demo_file = Path(__file__).parent.parent.parent.parent / "docs" / "synthetic-demo-data.json"

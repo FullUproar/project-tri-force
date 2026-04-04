@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { Upload, Sparkles, FileDown, Shield, Clock, BarChart3, CheckCircle2 } from "lucide-react";
 
 const FEATURES = [
@@ -44,15 +45,15 @@ const TIERS = [
 
 export function LandingPage() {
   return (
-    <div className="min-h-screen bg-[var(--background)]">
+    <div id="main-content" className="min-h-screen bg-[var(--background)]">
       {/* Nav */}
       <header className="border-b border-[var(--border)] px-6 py-4">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <img src="/logo-globe.webp" alt="CortaLoom" className="w-8 h-8" />
+            <Image src="/logo-globe.webp" alt="CortaLoom logo" width={32} height={32} />
             <span className="text-lg font-bold">CortaLoom</span>
           </div>
-          <div className="flex items-center gap-3">
+          <nav aria-label="Account navigation" className="flex items-center gap-3">
             <Link href="/sign-in" className="text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
               Sign in
             </Link>
@@ -62,10 +63,11 @@ export function LandingPage() {
             >
               Start Free Trial
             </Link>
-          </div>
+          </nav>
         </div>
       </header>
 
+      <main>
       {/* Hero */}
       <section className="px-6 py-20">
         <div className="max-w-4xl mx-auto text-center space-y-6">
@@ -198,15 +200,24 @@ export function LandingPage() {
           </Link>
         </div>
       </section>
+      </main>
 
       {/* Footer */}
       <footer className="px-6 py-8 border-t border-[var(--border)]">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
+        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <img src="/logo-globe.webp" alt="CortaLoom" className="w-6 h-6" />
+            <Image src="/logo-globe.webp" alt="CortaLoom logo" width={24} height={24} />
             <span className="text-sm text-[var(--muted-foreground)]">
               CortaLoom AI, Inc.
             </span>
+          </div>
+          <div className="flex items-center gap-4">
+            <Link href="/privacy" className="text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
+              Privacy Policy
+            </Link>
+            <Link href="/terms" className="text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
+              Terms of Service
+            </Link>
           </div>
           <p className="text-xs text-[var(--muted-foreground)]">
             HIPAA Compliant | SOC 2 Type II (planned) | Built in Indiana

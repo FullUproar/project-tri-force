@@ -47,25 +47,28 @@ async def get_usage_stats(
     tenant: Organization = Depends(get_current_tenant),
 ):
     """Usage statistics for the current tenant."""
-    job_count = await db.execute(
+    job_count_result = await db.execute(
         select(func.count()).select_from(IngestionJob).where(IngestionJob.tenant_id == tenant.id)
     )
-    extraction_count = await db.execute(
+    total_jobs = job_count_result.scalar() or 0
+
+    extraction_count_result = await db.execute(
         select(func.count()).select_from(ExtractionResult).where(ExtractionResult.tenant_id == tenant.id)
     )
+    total_extractions = extraction_count_result.scalar() or 0
 
     # Average confidence
-    avg_confidence = await db.execute(
+    avg_confidence_result = await db.execute(
         select(func.avg(ExtractionResult.confidence_score))
         .where(ExtractionResult.tenant_id == tenant.id)
         .where(ExtractionResult.confidence_score.is_not(None))
     )
 
     return {
-        "total_jobs": job_count.scalar() or 0,
-        "total_extractions": extraction_count.scalar() or 0,
-        "avg_confidence": round(avg_confidence.scalar() or 0, 2),
-        "estimated_time_saved_minutes": (extraction_count.scalar() or 0) * 44,
+        "total_jobs": total_jobs,
+        "total_extractions": total_extractions,
+        "avg_confidence": round(avg_confidence_result.scalar() or 0, 2),
+        "estimated_time_saved_minutes": total_extractions * 44,
     }
 
 

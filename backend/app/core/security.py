@@ -76,12 +76,24 @@ async def get_current_tenant(
     )
 
 
+async def get_admin_tenant(
+    tenant: Organization = Depends(get_current_tenant),
+) -> Organization:
+    """Require the authenticated tenant to be an admin organization."""
+    if not tenant.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
+        )
+    return tenant
+
+
 def add_cors_middleware(app):
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.allowed_origins,
         allow_credentials=True,
-        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_methods=["GET", "POST", "PATCH", "OPTIONS"],
         allow_headers=["X-API-Key", "Content-Type", "X-Request-ID"],
     )
 

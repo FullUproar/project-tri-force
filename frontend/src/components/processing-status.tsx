@@ -25,7 +25,7 @@ export function ProcessingStatus({ jobId }: ProcessingStatusProps) {
   const percentage = Math.round(status.progress * 100);
 
   return (
-    <div className="p-4 rounded-lg bg-[var(--muted)] space-y-2">
+    <div aria-live="polite" className="p-4 rounded-lg bg-[var(--muted)] space-y-2">
       <div className="flex items-center justify-between text-sm">
         <span className="font-medium">
           {STEP_LABELS[status.step] || status.step}

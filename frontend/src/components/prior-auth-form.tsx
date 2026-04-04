@@ -76,8 +76,9 @@ export function PriorAuthForm({ extraction, onGenerateNarrative, isGenerating }:
       ) : (
         <form className="space-y-4">
           <div>
-            <label className="block text-sm font-medium mb-1">ICD-10 Diagnosis Code</label>
+            <label htmlFor="diagnosis_code" className="block text-sm font-medium mb-1">ICD-10 Diagnosis Code</label>
             <input
+              id="diagnosis_code"
               {...register("diagnosis_code")}
               className="w-full px-3 py-2 border border-[var(--border)] rounded-md bg-[var(--background)] text-sm"
             />
@@ -94,8 +95,9 @@ export function PriorAuthForm({ extraction, onGenerateNarrative, isGenerating }:
           <TreatmentChecklist treatments={extraction.conservative_treatments_failed} />
 
           <div>
-            <label className="block text-sm font-medium mb-1">Implant Requested</label>
+            <label htmlFor="implant_type_requested" className="block text-sm font-medium mb-1">Implant Requested</label>
             <input
+              id="implant_type_requested"
               {...register("implant_type_requested")}
               className="w-full px-3 py-2 border border-[var(--border)] rounded-md bg-[var(--background)] text-sm"
             />
@@ -103,16 +105,18 @@ export function PriorAuthForm({ extraction, onGenerateNarrative, isGenerating }:
 
           <div className="flex items-center gap-2">
             <input
+              id="robotic_assistance_required"
               type="checkbox"
               {...register("robotic_assistance_required")}
               className="w-4 h-4 rounded border-[var(--border)]"
             />
-            <label className="text-sm font-medium">Robotic Assistance Required</label>
+            <label htmlFor="robotic_assistance_required" className="text-sm font-medium">Robotic Assistance Required</label>
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">Clinical Justification</label>
+            <label htmlFor="clinical_justification" className="block text-sm font-medium mb-1">Clinical Justification</label>
             <textarea
+              id="clinical_justification"
               {...register("clinical_justification")}
               rows={4}
               className="w-full px-3 py-2 border border-[var(--border)] rounded-md bg-[var(--background)] text-sm resize-y"

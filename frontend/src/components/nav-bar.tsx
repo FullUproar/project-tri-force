@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { UserButton } from "@clerk/nextjs";
-import { LayoutDashboard, BarChart3, Settings, CreditCard, BookOpen, Users } from "lucide-react";
+import { LayoutDashboard, BarChart3, Settings, CreditCard, BookOpen, Users, Menu, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useState, useEffect } from "react";
 
 const NAV_ITEMS = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -21,6 +23,12 @@ const ADMIN_ITEMS = [
 
 export function NavBar() {
   const pathname = usePathname();
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Close mobile menu on navigation
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
 
   const { data: orgInfo } = useQuery<{ is_admin: boolean }>({
     queryKey: ["me"],
@@ -39,7 +47,7 @@ export function NavBar() {
       <div className="max-w-7xl mx-auto flex items-center justify-between">
         <div className="flex items-center gap-6">
           <Link href="/" className="flex items-center gap-2">
-            <img src="/logo-globe.webp" alt="CortaLoom" className="w-8 h-8" />
+            <Image src="/logo-globe.webp" alt="CortaLoom logo" width={32} height={32} />
             <span className="text-lg font-bold">CortaLoom</span>
           </Link>
           <nav className="hidden md:flex items-center gap-1">
@@ -60,8 +68,38 @@ export function NavBar() {
             ))}
           </nav>
         </div>
-        <UserButton />
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setMobileOpen((prev) => !prev)}
+            className="md:hidden p-1.5 rounded hover:bg-[var(--muted)] transition-colors"
+            aria-label="Toggle menu"
+          >
+            {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
+          <UserButton />
+        </div>
       </div>
+
+      {/* Mobile menu */}
+      {mobileOpen && (
+        <nav className="md:hidden mt-3 pb-2 border-t border-[var(--border)] pt-3 space-y-1">
+          {allItems.map(({ href, label, icon: Icon }) => (
+            <Link
+              key={href}
+              href={href}
+              className={cn(
+                "flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors",
+                pathname === href
+                  ? "bg-[var(--primary)] text-[var(--primary-foreground)]"
+                  : "text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
+              )}
+            >
+              <Icon className="w-4 h-4" />
+              {label}
+            </Link>
+          ))}
+        </nav>
+      )}
     </header>
   );
 }

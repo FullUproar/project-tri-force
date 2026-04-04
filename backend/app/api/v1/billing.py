@@ -17,33 +17,33 @@ stripe.api_key = settings.stripe_secret_key.get_secret_value()
 
 router = APIRouter()
 
-# Tier configuration — Stripe price IDs from our creation script
+# Tier configuration — Stripe price IDs from env vars (fall back to legacy hardcoded IDs)
 TIERS = {
     "starter": {
         "name": "Starter",
-        "price_id": "price_1THb6g58OPvbpO2iq3Sv3p0p",
+        "price_id": settings.stripe_price_id_starter or "price_1THb6g58OPvbpO2iq3Sv3p0p",
         "amount": 149,
         "included_extractions": 50,
         "description": "Small, single-specialty ASC",
     },
     "professional": {
         "name": "Professional",
-        "price_id": "price_1THb6h58OPvbpO2iFGcWgV61",
+        "price_id": settings.stripe_price_id_professional or "price_1THb6h58OPvbpO2iFGcWgV61",
         "amount": 299,
         "included_extractions": 150,
         "description": "2-4 OR multi-specialty ASC",
     },
     "enterprise": {
         "name": "Enterprise",
-        "price_id": "price_1THb6h58OPvbpO2i0kmBVmSt",
+        "price_id": settings.stripe_price_id_enterprise or "price_1THb6h58OPvbpO2i0kmBVmSt",
         "amount": 499,
         "included_extractions": 350,
         "description": "High-volume facility",
     },
 }
 
-OVERAGE_PRICE_ID = "price_1THb6g58OPvbpO2ix0cLLjJX"
-STRIPE_METER_EVENT_NAME = "cortaloom_extraction"
+OVERAGE_PRICE_ID = settings.stripe_overage_price_id or "price_1THb6g58OPvbpO2ix0cLLjJX"
+STRIPE_METER_EVENT_NAME = settings.stripe_meter_id or "cortaloom_extraction"
 
 
 class CreateCheckoutRequest(BaseModel):
@@ -278,7 +278,15 @@ async def handle_stripe_webhook(request: Request, db: AsyncSession):
             event = stripe.Webhook.construct_event(payload, sig, webhook_secret)
         except stripe.SignatureVerificationError:
             raise HTTPException(status_code=400, detail="Invalid webhook signature")
+    elif settings.environment != "development":
+        # In production/staging, webhook secret is mandatory
+        logger.error("Stripe webhook secret not configured in non-development environment")
+        raise HTTPException(
+            status_code=500,
+            detail="Webhook signature verification not configured",
+        )
     else:
+        # Development only: accept unsigned events for local testing
         import json as json_mod
         event = stripe.Event.construct_from(json_mod.loads(payload), stripe.api_key)
 

@@ -1,5 +1,6 @@
 "use client";
 
+import DOMPurify from "dompurify";
 import { Sparkles } from "lucide-react";
 import { getICD10Description } from "@/lib/icd10";
 import type { ExtractionResult } from "@/lib/api";
@@ -45,7 +46,7 @@ export function AISummary({ extraction }: AISummaryProps) {
       </div>
       <p
         className="text-sm text-blue-900 leading-relaxed"
-        dangerouslySetInnerHTML={{ __html: parts.join(" ") }}
+        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(parts.join(" ")) }}
       />
     </div>
   );

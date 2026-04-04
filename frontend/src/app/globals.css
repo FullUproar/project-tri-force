@@ -28,6 +28,12 @@
   }
 }
 
+/* Accessibility - visible focus indicators */
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
