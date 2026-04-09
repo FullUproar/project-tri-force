@@ -248,8 +248,9 @@ async def test_narrative_generation_mocked():
 
         from app.services.llm.narrative import generate_narrative
 
-        text, model, version = await generate_narrative(MOCK_EXTRACTION)
+        text, model, version, citations = await generate_narrative(MOCK_EXTRACTION)
 
     assert "clinical justification" in text
     assert model == "claude-sonnet-4-20250514"
     assert version == "v1.0"
+    assert isinstance(citations, list)

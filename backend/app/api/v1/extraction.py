@@ -15,7 +15,7 @@ from pydantic import BaseModel
 
 from app.core.security import get_current_tenant
 from app.dependencies import get_db
-from app.models.database import ExtractionResult, Organization, PayerNarrative, PayerPolicy
+from app.models.database import ExtractionResult, NarrativeCitation, Organization, PayerNarrative, PayerPolicy, PayerPolicyChunk
 from app.models.schemas import GenerateNarrativeRequest, NarrativeResponse, OrthoPriorAuthData
 from app.services.llm.narrative import generate_narrative
 
@@ -111,10 +111,11 @@ async def create_narrative(
     if ext.ingestion_job and ext.ingestion_job.metadata_json:
         additional_context = f"Imaging metadata: {ext.ingestion_job.metadata_json}"
 
-    # Look up payer-specific criteria if payer is provided
+    # Look up payer-specific criteria and policy chunks for RAG
     payer_name = body.payer if body else None
     procedure_name = body.procedure if body else None
     payer_criteria = None
+    policy_chunks = []
 
     if payer_name:
         # Auto-suggest procedure from diagnosis code if not explicitly provided
@@ -134,12 +135,23 @@ async def create_narrative(
             if policy:
                 payer_criteria = policy.criteria
 
-    narrative_text, model_used, prompt_version = await generate_narrative(
+            # Retrieve policy chunks for RAG context + citations
+            chunks_result = await db.execute(
+                select(PayerPolicyChunk)
+                .where(PayerPolicyChunk.payer == payer_name)
+                .where(PayerPolicyChunk.procedure == procedure_name)
+                .order_by(PayerPolicyChunk.chunk_index)
+                .limit(10)
+            )
+            policy_chunks = list(chunks_result.scalars().all())
+
+    narrative_text, model_used, prompt_version, citations_raw = await generate_narrative(
         extraction_data,
         additional_context,
         payer_name=payer_name,
         procedure_name=procedure_name,
         payer_criteria=payer_criteria,
+        policy_chunks=policy_chunks if policy_chunks else None,
     )
 
     narrative = PayerNarrative(
@@ -155,6 +167,50 @@ async def create_narrative(
     await db.commit()
     await db.refresh(narrative)
 
+    # Store citations if any were generated
+    stored_citations = []
+    for cit in citations_raw:
+        source_chunk_id = None
+        source_text = None
+        section_title = None
+        source_type = cit.get("source_type", "payer_policy")
+
+        # Map source_index back to the actual chunk
+        source_idx = cit.get("source_index")
+        if source_idx is not None and isinstance(source_idx, int):
+            # Index 0 is clinical data, 1+ are policy chunks
+            chunk_offset = source_idx - 1  # subtract 1 for clinical data at index 0
+            if chunk_offset >= 0 and chunk_offset < len(policy_chunks):
+                chunk = policy_chunks[chunk_offset]
+                source_chunk_id = chunk.id
+                source_text = chunk.content
+                section_title = chunk.section_title
+                source_type = "payer_policy"
+            elif source_idx == 0:
+                source_type = "clinical_note"
+                source_text = extraction_data.clinical_justification
+
+        citation = NarrativeCitation(
+            narrative_id=narrative.id,
+            marker=str(cit.get("marker", "")),
+            claim_text=cit.get("claim", ""),
+            source_type=source_type,
+            source_chunk_id=source_chunk_id,
+            source_text=source_text,
+            section_title=section_title,
+        )
+        db.add(citation)
+        stored_citations.append({
+            "marker": citation.marker,
+            "claim": citation.claim_text,
+            "source_type": citation.source_type,
+            "source_text": citation.source_text,
+            "section_title": citation.section_title,
+        })
+
+    if stored_citations:
+        await db.commit()
+
     from app.core.audit import log_event
 
     await log_event(
@@ -165,6 +221,7 @@ async def create_narrative(
             "prompt_version": prompt_version,
             "payer": payer_name,
             "procedure": procedure_name,
+            "citation_count": len(stored_citations),
         },
         tenant_id=tenant.id,
     )
@@ -177,6 +234,7 @@ async def create_narrative(
         prompt_version=prompt_version,
         payer=payer_name,
         procedure=procedure_name,
+        citations=stored_citations if stored_citations else None,
     )
 
 

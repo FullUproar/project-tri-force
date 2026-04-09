@@ -41,6 +41,14 @@ export interface JobStatusResponse {
   error_message: string | null;
 }
 
+export interface Citation {
+  marker: string;
+  claim: string;
+  source_type: string;
+  source_text: string | null;
+  section_title: string | null;
+}
+
 export interface NarrativeResponse {
   narrative_id: string;
   narrative_text: string;
@@ -48,6 +56,7 @@ export interface NarrativeResponse {
   prompt_version: string;
   payer: string | null;
   procedure: string | null;
+  citations: Citation[] | null;
 }
 
 export async function uploadDicom(file: File): Promise<IngestionResponse> {
@@ -182,4 +191,43 @@ export async function exportNarrativePdf(extractionId: string): Promise<void> {
 
 export function getSSEUrl(jobId: string): string {
   return `${API_BASE}/ingest/jobs/${jobId}/status`;
+}
+
+export async function fetchCitations(narrativeId: string): Promise<Citation[]> {
+  const res = await fetch(`${API_BASE}/citations/${narrativeId}`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export interface PolicyChunk {
+  id: string;
+  payer: string;
+  procedure: string | null;
+  section_title: string | null;
+  content: string;
+  chunk_index: number;
+}
+
+export async function fetchPolicyChunks(payer?: string, procedure?: string): Promise<PolicyChunk[]> {
+  const params = new URLSearchParams();
+  if (payer) params.set("payer", payer);
+  if (procedure) params.set("procedure", procedure);
+  const res = await fetch(`${API_BASE}/policy-docs/chunks?${params}`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export interface GraphInsight {
+  type: string;
+  payer?: string;
+  requirement: string;
+  criterion_type?: string;
+}
+
+export async function fetchGraphInsights(procedure: string, diagnosisCode?: string): Promise<GraphInsight[]> {
+  const params = new URLSearchParams({ procedure });
+  if (diagnosisCode) params.set("diagnosis_code", diagnosisCode);
+  const res = await fetch(`${API_BASE}/graph/insights?${params}`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
 }

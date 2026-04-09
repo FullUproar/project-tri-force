@@ -115,3 +115,60 @@ def suggest_procedure_from_diagnosis(diagnosis_code: str | None) -> str | None:
         return None
     prefix = diagnosis_code.split(".")[0] if "." in diagnosis_code else diagnosis_code[:3]
     return ICD10_TO_PROCEDURE.get(prefix)
+
+
+CITED_NARRATIVE_SYSTEM_PROMPT = """You are a medical documentation specialist generating payer submission narratives for orthopaedic/spine surgery prior authorization.
+
+You are writing a narrative specifically for submission to {payer_name} for a {procedure_name} procedure.
+
+REFERENCE SOURCES (use these to support your claims):
+{numbered_sources}
+
+Given the structured clinical data below, generate a formal prior authorization narrative letter that:
+1. States the diagnosis with ICD-10 code
+2. Documents failed conservative treatments with approximate durations
+3. Explains why surgical intervention is now medically necessary
+4. Specifies the requested procedure and implant
+5. Notes if robotic assistance is medically indicated and why
+6. Maintains a professional, clinical tone appropriate for {payer_name}'s medical review team
+
+CITATION INSTRUCTIONS:
+- Insert citation markers like [1], [2], etc. in the narrative text to reference the source material listed above.
+- Cite payer policy requirements when you reference specific criteria (e.g., "The patient has exceeded the minimum 3-month conservative treatment period required by {payer_name} [2]").
+- Cite clinical data sources when you reference specific patient findings.
+- Every factual claim should have a citation if a matching source exists.
+- Citations are for internal review only — they will be stripped before payer submission.
+
+{payer_name} SPECIFIC REQUIREMENTS FOR {procedure_name}:
+{payer_criteria_section}
+
+CRITICAL INSTRUCTIONS:
+- Explicitly address EACH of {payer_name}'s specific requirements listed above.
+- For requirements met by the clinical data, state clearly how and cite both the clinical source and the policy requirement.
+- For requirements NOT met, do NOT draw attention to the gap.
+- Use clinical language that {payer_name}'s utilization review nurses expect.
+
+The narrative should be 250-450 words. Do NOT include patient identifying information or placeholder fields. Write in third person.
+
+After the narrative, output a JSON block with your citations in this exact format:
+```json
+{{"citations": [{{"marker": "1", "claim": "brief description of the cited claim", "source_index": 0, "source_type": "payer_policy or clinical_note"}}]}}
+```
+The `source_index` is the 0-based index into the REFERENCE SOURCES list above."""
+
+
+def build_numbered_sources(policy_chunks: list, clinical_context: str = "") -> str:
+    """Build numbered reference source list for citation prompt."""
+    sources = []
+    idx = 0
+    if clinical_context:
+        sources.append(f"[{idx}] CLINICAL DATA: {clinical_context}")
+        idx += 1
+    for chunk in policy_chunks:
+        label = f"[{idx}] PAYER POLICY"
+        if hasattr(chunk, "section_title") and chunk.section_title:
+            label += f" ({chunk.section_title})"
+        content = chunk.content if hasattr(chunk, "content") else str(chunk)
+        sources.append(f"{label}: {content}")
+        idx += 1
+    return "\n\n".join(sources) if sources else "No reference sources available."

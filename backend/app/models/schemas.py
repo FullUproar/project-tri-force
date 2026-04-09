@@ -113,6 +113,14 @@ class GenerateNarrativeRequest(BaseModel):
     procedure: str | None = None  # e.g., "Total Knee Replacement"
 
 
+class CitationResponse(BaseModel):
+    marker: str
+    claim: str
+    source_type: str  # clinical_note, payer_policy
+    source_text: str | None = None
+    section_title: str | None = None
+
+
 class NarrativeResponse(BaseModel):
     narrative_id: uuid.UUID
     narrative_text: str
@@ -120,6 +128,7 @@ class NarrativeResponse(BaseModel):
     prompt_version: str
     payer: str | None = None
     procedure: str | None = None
+    citations: list[CitationResponse] | None = None
 
 
 # --- SSE Schemas ---

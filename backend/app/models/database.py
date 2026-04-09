@@ -179,6 +179,127 @@ class PayerPolicy(Base):
     )
 
 
+class PayerPolicyDocument(Base):
+    __tablename__ = "payer_policy_documents"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    payer: Mapped[str] = mapped_column(String(50))
+    procedure: Mapped[str | None] = mapped_column(String(100))
+    title: Mapped[str] = mapped_column(String(300))
+    source_url: Mapped[str | None] = mapped_column(Text)
+    source_hash: Mapped[str | None] = mapped_column(String(64))
+    uploaded_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    status: Mapped[str] = mapped_column(String(20), default="active")
+    total_chunks: Mapped[int] = mapped_column(Integer, default=0)
+    metadata_json: Mapped[dict | None] = mapped_column(JSONB)
+
+    chunks: Mapped[list["PayerPolicyChunk"]] = relationship(back_populates="document")
+
+
+class PayerPolicyChunk(Base):
+    __tablename__ = "payer_policy_chunks"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    document_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("payer_policy_documents.id")
+    )
+    policy_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("payer_policies.id")
+    )
+    payer: Mapped[str] = mapped_column(String(50), index=True)
+    procedure: Mapped[str | None] = mapped_column(String(100), index=True)
+    section_title: Mapped[str | None] = mapped_column(String(300))
+    content: Mapped[str] = mapped_column(Text)
+    embedding = mapped_column(Vector(384))
+    page_number: Mapped[int | None] = mapped_column(Integer)
+    chunk_index: Mapped[int] = mapped_column(Integer)
+    char_start: Mapped[int | None] = mapped_column(Integer)
+    char_end: Mapped[int | None] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    document: Mapped["PayerPolicyDocument | None"] = relationship(back_populates="chunks")
+
+
+class NarrativeCitation(Base):
+    __tablename__ = "narrative_citations"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    narrative_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("payer_narratives.id"), index=True
+    )
+    marker: Mapped[str] = mapped_column(String(10))
+    claim_text: Mapped[str] = mapped_column(Text)
+    source_type: Mapped[str] = mapped_column(String(20))  # clinical_note, payer_policy
+    source_chunk_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("payer_policy_chunks.id")
+    )
+    source_text: Mapped[str | None] = mapped_column(Text)
+    page_number: Mapped[int | None] = mapped_column(Integer)
+    section_title: Mapped[str | None] = mapped_column(String(300))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    source_chunk: Mapped["PayerPolicyChunk | None"] = relationship()
+
+
+class KGNode(Base):
+    __tablename__ = "kg_nodes"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    node_type: Mapped[str] = mapped_column(String(30))  # payer, procedure, criterion, diagnosis, treatment, requirement
+    label: Mapped[str] = mapped_column(String(300))
+    properties: Mapped[dict | None] = mapped_column(JSONB)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    outgoing_edges: Mapped[list["KGEdge"]] = relationship(
+        foreign_keys="KGEdge.source_node_id", back_populates="source_node"
+    )
+    incoming_edges: Mapped[list["KGEdge"]] = relationship(
+        foreign_keys="KGEdge.target_node_id", back_populates="target_node"
+    )
+
+
+class KGEdge(Base):
+    __tablename__ = "kg_edges"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    source_node_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("kg_nodes.id"), index=True
+    )
+    target_node_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("kg_nodes.id"), index=True
+    )
+    edge_type: Mapped[str] = mapped_column(String(30))  # requires, strengthens, treats, diagnosed_with, has_criterion
+    properties: Mapped[dict | None] = mapped_column(JSONB)
+    confidence: Mapped[float] = mapped_column(Float, default=1.0)
+    source_chunk_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("payer_policy_chunks.id")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    source_node: Mapped["KGNode"] = relationship(foreign_keys=[source_node_id], back_populates="outgoing_edges")
+    target_node: Mapped["KGNode"] = relationship(foreign_keys=[target_node_id], back_populates="incoming_edges")
+
+
 class AuditLog(Base):
     __tablename__ = "audit_log"
 
