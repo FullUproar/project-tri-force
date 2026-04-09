@@ -79,10 +79,15 @@ export function CaseCard({ job }: CaseCardProps) {
       {ext && (
         <div className="px-5 py-4 space-y-3">
           {/* Diagnosis Row */}
-          <div className="flex items-baseline gap-2">
+          <div className="flex items-baseline gap-2 flex-wrap">
             <span className="text-lg font-bold font-mono">{ext.diagnosis_code}</span>
             {icdDesc && (
               <span className="text-sm text-blue-600">{icdDesc}</span>
+            )}
+            {ext.procedure_cpt_codes && ext.procedure_cpt_codes.length > 0 && (
+              <span className="text-xs text-indigo-600 font-mono">
+                CPT: {ext.procedure_cpt_codes.join(", ")}
+              </span>
             )}
           </div>
 

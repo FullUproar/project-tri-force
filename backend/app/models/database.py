@@ -1,15 +1,56 @@
+import random
+import string
 import uuid
 from datetime import datetime
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import BigInteger, Boolean, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import BigInteger, Boolean, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
 
+# Characters for short case IDs — no ambiguous chars (0/O, 1/I/L)
+_SHORT_ID_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
+
+
+def generate_short_id(length: int = 4) -> str:
+    """Generate a human-readable short ID like 'CL-7K3M'."""
+    return "CL-" + "".join(random.choices(_SHORT_ID_CHARS, k=length))
+
+
 class Base(DeclarativeBase):
     pass
+
+
+# --- Cases ---
+
+
+class Case(Base):
+    __tablename__ = "cases"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("organizations.id"), index=True
+    )
+    short_id: Mapped[str] = mapped_column(String(10), index=True)
+    label: Mapped[str | None] = mapped_column(String(200))  # optional user-provided label
+    status: Mapped[str] = mapped_column(String(20), default="open")  # open, submitted, approved, denied, appealed
+    denial_reason: Mapped[str | None] = mapped_column(Text)  # user-entered denial reason for appeals
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "short_id", name="uq_case_tenant_short_id"),
+    )
+
+    jobs: Mapped[list["IngestionJob"]] = relationship(back_populates="case")
 
 
 # --- Multi-tenancy ---
@@ -72,6 +113,9 @@ class IngestionJob(Base):
     tenant_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("organizations.id"), index=True
     )
+    case_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("cases.id"), index=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -83,6 +127,7 @@ class IngestionJob(Base):
     metadata_json: Mapped[dict | None] = mapped_column(JSONB)
     error_message: Mapped[str | None] = mapped_column(Text)
 
+    case: Mapped["Case | None"] = relationship(back_populates="jobs")
     extraction_result: Mapped["ExtractionResult | None"] = relationship(
         back_populates="ingestion_job"
     )
@@ -112,6 +157,7 @@ class ExtractionResult(Base):
     raw_extraction_json: Mapped[dict | None] = mapped_column(JSONB)
     outcome: Mapped[str | None] = mapped_column(String(20))  # approved, denied, pending, appealed
     schema_version: Mapped[str | None] = mapped_column(String(10), default="ortho_v1")  # ortho_v1, spine_v1, dental_v1
+    procedure_cpt_codes: Mapped[list | None] = mapped_column(JSONB)  # e.g. ["27447", "S2900"]
 
     ingestion_job: Mapped["IngestionJob"] = relationship(back_populates="extraction_result")
     narratives: Mapped[list["PayerNarrative"]] = relationship(back_populates="extraction_result")
@@ -139,6 +185,27 @@ class PayerNarrative(Base):
     procedure: Mapped[str | None] = mapped_column(String(100))
 
     extraction_result: Mapped["ExtractionResult"] = relationship(back_populates="narratives")
+    versions: Mapped[list["NarrativeVersion"]] = relationship(back_populates="narrative", order_by="NarrativeVersion.version_number")
+
+
+class NarrativeVersion(Base):
+    """Full snapshot of narrative text at each version for liability trail and undo."""
+    __tablename__ = "narrative_versions"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    narrative_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("payer_narratives.id"), index=True
+    )
+    version_number: Mapped[int] = mapped_column(Integer)
+    narrative_text: Mapped[str] = mapped_column(Text)
+    source: Mapped[str] = mapped_column(String(20))  # "ai" or "human_edit"
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    narrative: Mapped["PayerNarrative"] = relationship(back_populates="versions")
 
 
 class ClinicalNoteEmbedding(Base):

@@ -8,10 +8,11 @@
 ## Production Stack (Live)
 
 **Backend** — FastAPI on Railway (`project-tri-force-production.up.railway.app`):
-- Python 3.13, FastAPI, SQLAlchemy 2.0 (async), Alembic (14 migrations applied)
+- Python 3.13, FastAPI, SQLAlchemy 2.0 (async), Alembic (16 migrations applied)
 - Neon PostgreSQL + pgvector
 - Cloudflare R2 (S3-compatible object storage)
-- LangChain + Anthropic Claude Sonnet (extraction + narrative with RAG + citations)
+- LangChain + Anthropic Claude Sonnet (extraction + narrative with RAG + citations + appeals)
+- Resend (email notifications: job complete/fail, budget alerts, denial, subscription)
 - Microsoft Presidio + regex (dual-pass PHI scrubbing with ScrubbedText type guard)
 - Stripe tiered billing (Starter $149 / Professional $299 / Enterprise $499)
 - Sentry error tracking
@@ -23,25 +24,35 @@
 - Server-side API proxy (API key never in browser bundle)
 - @sentry/nextjs for frontend error tracking
 - Playwright E2E tests
-- 8 pages: Dashboard, Sign-in, Sign-up, Onboarding, Admin, Analytics, Billing, Policies
+- 9 pages: Dashboard, Sign-in, Sign-up, Onboarding, Admin, Analytics, Billing, Policies, Cases
 
 ## What's Built (Complete Feature List)
 
+### Case Management
+- POST /cases — create case with human-readable short ID (e.g., CL-7K3M)
+- GET /cases — list cases for tenant (with document counts, filterable by status)
+- GET /cases/{short_id} — get case by short ID
+- PATCH /cases/{short_id} — update case label or status
+- All ingestion endpoints accept optional `case_id` query param to group documents into a case
+- Case statuses: open, submitted, approved, denied, appealed
+- Short IDs use unambiguous characters (no 0/O/1/I/L), unique within tenant
+
 ### Ingestion Pipeline
-- POST /ingest/dicom — DICOM metadata extraction + Safe Harbor de-identification
-- POST /ingest/clinical-note — text file upload
-- POST /ingest/clinical-note/text — JSON body (for demo button)
-- POST /ingest/robotic-report — PDF text extraction
+- POST /ingest/dicom — DICOM metadata extraction + Safe Harbor de-identification (optional case_id)
+- POST /ingest/clinical-note — text file upload (optional case_id)
+- POST /ingest/clinical-note/text — JSON body (optional case_id, for demo button)
+- POST /ingest/robotic-report — PDF text extraction (optional case_id)
 - File size validation on all endpoints (500MB max, configurable)
 - Clinical note minimum length validation (20 chars)
 - Pagination bounds enforced on job listing (limit 1-100, offset >= 0)
 
 ### LLM Pipeline
-- Claude Sonnet structured extraction → OrthoPriorAuthData (ICD-10, treatments, implant, robotic, justification, confidence)
-- Claude Sonnet narrative generation — 3 modes:
+- Claude Sonnet structured extraction → OrthoPriorAuthData (ICD-10, CPT codes, treatments, implant, robotic, justification, confidence)
+- Claude Sonnet narrative generation — 4 modes:
   - **Generic** (v1.0): Standard payer submission letter
   - **Payer-Specific** (v2.0-payer): Tailored to specific payer's requirements
   - **Cited** (v3.0-cited): RAG-augmented with inline citation markers [1], [2] referencing policy chunks and clinical data
+  - **Appeal** (v4.0-appeal): Counter-narrative addressing denial reason, referencing original submission
 - LLM call latency logging (no content logged)
 - ScrubbedText type guard prevents raw PHI from reaching LLM
 - 60-second timeout with 2 retries and exponential backoff
@@ -84,11 +95,17 @@
 
 ### Extraction & Narrative
 - POST /extraction/{id}/narrative — generate payer narrative (accepts optional payer + procedure for payer-specific + cited mode)
+- POST /extraction/{id}/appeal — generate appeal letter (denial reason + original narrative context)
 - PATCH /extraction/{id} — override extraction fields (tenant-verified)
 - PATCH /extraction/{id}/outcome — track approved/denied/pending/appealed (tenant-verified)
-- GET /extraction/{id}/export/pdf — formatted PDF with AI disclosure (tenant-verified)
+- GET /extraction/{id}/export/pdf — formatted PDF with adaptive AI disclosure (tenant-verified)
+- PUT /narrative/{id}/edit — save human edit with version snapshot
+- GET /narrative/{id}/versions — full version history (AI vs human-edited)
+- POST /narrative/{id}/revert/{version} — revert to any prior version
 - GET /share/{id} — public read-only link (no auth, UUID capability token)
 - GET /disclosure — TRAIGA AI disclosure text
+- Narrative version history: v0 = AI-generated (immutable), v1+ = human edits, each as full snapshot
+- Adaptive TRAIGA disclosure: "AI-generated, edited by user" vs "AI-generated narrative, unmodified"
 
 ### Analytics
 - GET /analytics/outcomes — approval rate, outcome breakdown (tenant-scoped)
@@ -144,8 +161,9 @@
 - Time-Saved Counter (~44 min saved per extraction)
 - ICD-10 code descriptions (30+ common ortho codes)
 - Prior Auth Form with confidence badges and outcome tracker
-- Narrative panel with copy, download PDF, share link, regenerate
+- Narrative panel with copy, download PDF, share link, regenerate, **inline edit**, **version history**, **undo/revert**
 - "Generate {Payer}-Specific Narrative" button when payer selected
+- **CPT code badges** on case card and prior auth form
 - Job history panel with status dots and click-to-load
 - Loading skeletons during processing
 - New Case button (resets payer/procedure selection)
@@ -160,12 +178,14 @@
 - FDA_POSITIONING.md — non-device CDS exemption analysis
 - TRAIGA AI disclosure in all PDF exports
 
-## Database Schema (14 migrations)
+## Database Schema (16 migrations)
 - **organizations** (name, is_active, baa_signed_at, stripe_customer_id, subscription_status, subscription_tier, monthly_extraction_count, billing_cycle_start, overage_budget_cap, alert_at_80_sent, alert_at_100_sent, is_admin, verticals)
 - **api_keys** (organization_id, key_hash SHA-256, name, is_active)
-- **ingestion_jobs** (tenant_id, source_type, status, file_key, original_filename, file_size_bytes, metadata_json, error_message)
-- **extraction_results** (tenant_id, diagnosis_code, treatments, implant, robotic, justification, confidence, outcome, raw_extraction_json, schema_version)
+- **cases** (tenant_id, short_id, label, status, denial_reason, created_at, updated_at) — unique on (tenant_id, short_id)
+- **ingestion_jobs** (tenant_id, case_id, source_type, status, file_key, original_filename, file_size_bytes, metadata_json, error_message)
+- **extraction_results** (tenant_id, diagnosis_code, procedure_cpt_codes JSONB, treatments, implant, robotic, justification, confidence, outcome, raw_extraction_json, schema_version)
 - **payer_narratives** (tenant_id, narrative_text, model_used, prompt_version, payer, procedure)
+- **narrative_versions** (narrative_id, version_number, narrative_text, source, created_at) — full snapshot per version
 - **payer_policies** (payer, procedure, criteria JSONB, source_url, source_hash, version, effective_date, verified_date, changelog, status)
 - **payer_policy_documents** (payer, procedure, title, source_url, source_hash, status, total_chunks, metadata_json)
 - **payer_policy_chunks** (document_id, policy_id, payer, procedure, section_title, content, embedding VECTOR(384), page_number, chunk_index, char_start, char_end)
@@ -208,21 +228,23 @@ Clinical Note → PHI Scrub → LLM Extraction → ExtractionResult
 
 ## Roadmap: Known Gaps for Full Beta
 
-### Product Gaps (require design decisions)
-- **Multi-document case assembly** — no concept of a "case" grouping multiple documents (DICOM + clinical note + robotic report)
-- **Narrative editing in-app** — users can't edit narrative text before export
-- **Appeal letter generation** — denied outcomes have no workflow
-- **Email notifications** — no alerts when jobs complete/fail/hit budget cap
-- **Batch upload** — one file at a time, no queue
-- **SSO / team accounts** — one API key per org, no individual users
-- **CPT code support** — prior auths need CPT codes alongside ICD-10
+### Product Gaps (Resolved)
+- ~~**Multi-document case assembly**~~ — cases table with human-readable short IDs (CL-XXXX), documents grouped via case_id FK
+- ~~**Narrative editing in-app**~~ — inline editing with full version history (v0=AI, v1+=human), undo/revert to any version
+- ~~**Appeal letter generation**~~ — denial reason capture, v4.0-appeal prompt, linked to original narrative
+- ~~**Email notifications**~~ — Resend integration: job complete/fail, budget 80%/100% alerts, denial, subscription changes
+- ~~**CPT code support**~~ — added to extraction schema, ortho prompt, narrative prompt, case card, prior auth form, PDF export
 
-### Technical Debt
-- **N+1 query** in admin list_organizations (separate COUNT per org)
-- **No LLM mock tests** — test suite depends on real API if key configured
-- **No Stripe webhook tests** — webhook handler uncovered
-- **SSE reconnection** — no retry on network error
-- **Missing composite index** — (tenant_id, created_at) for analytics queries at scale
+### Remaining Product Gaps
+- **Batch upload** — one file at a time, no queue (by design — case grouping handles multi-document)
+- **SSO / team accounts** — one API key per org, no individual users (Phase 2, customer-driven)
+
+### Technical Debt (Resolved)
+- ~~**N+1 query** in admin list_organizations~~ — fixed with subquery JOINs (single query)
+- ~~**No LLM mock tests**~~ — added test_narrative_modes.py (payer-specific, cited, prompt helpers)
+- ~~**No Stripe webhook tests**~~ — added test_stripe_webhook.py (create, update, delete, unknown customer, unhandled events)
+- ~~**SSE reconnection**~~ — added exponential backoff retry (5 attempts) in useProcessingStatus hook
+- ~~**Missing composite index**~~ — added migration 015 with (tenant_id, created_at) indexes on 4 tables
 
 ### Phase 2: Payer Intelligence Evolution
 - **Semantic search** — add embeddings to policy chunks (VECTOR(384) column ready)
@@ -234,7 +256,7 @@ Clinical Note → PHI Scrub → LLM Extraction → ExtractionResult
 ## Core Rules
 
 1. **Check before filing:** Most features below are already built. Check this spec before creating issues.
-2. **No new vendors:** Anthropic only for LLM. Clerk for auth. Stripe for billing. No exceptions without founder approval.
+2. **No new vendors:** Anthropic only for LLM. Clerk for auth. Stripe for billing. Resend for email. No exceptions without founder approval.
 3. **No architecture changes:** Multi-tenancy, ScrubbedText type guard, server-side proxy, and JSONB extraction storage are locked decisions.
 4. **Atomic issues:** One PR per issue. If it touches >5 files, break it up.
 5. **Docs go in /docs:** Don't modify code files. Strategic documents go in the /docs directory.

@@ -191,6 +191,22 @@ export function PriorAuthForm({
             )}
           </div>
 
+          {extraction?.procedure_cpt_codes && extraction.procedure_cpt_codes.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium mb-1">CPT Code(s)</label>
+              <div className="flex flex-wrap gap-1.5">
+                {extraction.procedure_cpt_codes.map((code) => (
+                  <span
+                    key={code}
+                    className="px-2 py-1 rounded bg-indigo-50 text-indigo-700 text-xs font-mono font-medium border border-indigo-200"
+                  >
+                    {code}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
           <TreatmentChecklist treatments={extraction.conservative_treatments_failed} />
 
           <div>

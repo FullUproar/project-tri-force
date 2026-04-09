@@ -2,15 +2,24 @@
 
 import { useState } from "react";
 import DOMPurify from "dompurify";
-import { Copy, Check, RefreshCw, Download, Link2, BookOpen } from "lucide-react";
+import { Copy, Check, RefreshCw, Download, Link2, BookOpen, Pencil, History, Undo2, Save } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { exportNarrativePdf, type NarrativeResponse, type Citation } from "@/lib/api";
+import {
+  exportNarrativePdf,
+  editNarrative,
+  getNarrativeVersions,
+  revertNarrative,
+  type NarrativeResponse,
+  type NarrativeVersion,
+  type Citation,
+} from "@/lib/api";
 
 interface NarrativePanelProps {
   narrative: NarrativeResponse | null;
   extractionId: string | null;
   onRegenerate: () => void;
   isRegenerating: boolean;
+  onNarrativeUpdate?: (text: string) => void;
 }
 
 function buildCitationMap(citations: Citation[]): Map<string, Citation> {
@@ -104,12 +113,18 @@ const SOURCE_TYPE_COLORS: Record<string, string> = {
   robotic: "bg-orange-100 text-orange-700",
 };
 
-export function NarrativePanel({ narrative, extractionId, onRegenerate, isRegenerating }: NarrativePanelProps) {
+export function NarrativePanel({ narrative, extractionId, onRegenerate, isRegenerating, onNarrativeUpdate }: NarrativePanelProps) {
   const [copied, setCopied] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [activeCitation, setActiveCitation] = useState<string | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editText, setEditText] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [showVersions, setShowVersions] = useState(false);
+  const [versions, setVersions] = useState<NarrativeVersion[]>([]);
+  const [loadingVersions, setLoadingVersions] = useState(false);
 
   if (!narrative) return null;
 
@@ -133,6 +148,58 @@ export function NarrativePanel({ narrative, extractionId, onRegenerate, isRegene
       setDownloadError("PDF export failed. You can copy the text instead.");
     } finally {
       setDownloading(false);
+    }
+  };
+
+  const handleStartEdit = () => {
+    setEditText(narrative.narrative_text);
+    setIsEditing(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editText.trim() || editText === narrative.narrative_text) {
+      setIsEditing(false);
+      return;
+    }
+    setIsSaving(true);
+    try {
+      await editNarrative(narrative.narrative_id, editText);
+      onNarrativeUpdate?.(editText);
+      setIsEditing(false);
+    } catch {
+      // keep editing on failure
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleShowVersions = async () => {
+    if (showVersions) {
+      setShowVersions(false);
+      return;
+    }
+    setLoadingVersions(true);
+    try {
+      const v = await getNarrativeVersions(narrative.narrative_id);
+      setVersions(v);
+      setShowVersions(true);
+    } catch {
+      // silently fail
+    } finally {
+      setLoadingVersions(false);
+    }
+  };
+
+  const handleRevert = async (versionNumber: number) => {
+    try {
+      await revertNarrative(narrative.narrative_id, versionNumber);
+      const target = versions.find((v) => v.version_number === versionNumber);
+      if (target) {
+        onNarrativeUpdate?.(target.narrative_text);
+      }
+      setShowVersions(false);
+    } catch {
+      // silently fail
     }
   };
 
@@ -192,8 +259,43 @@ export function NarrativePanel({ narrative, extractionId, onRegenerate, isRegene
             )}
           </button>
           <button
+            onClick={isEditing ? handleSaveEdit : handleStartEdit}
+            disabled={isSaving}
+            className="p-1.5 rounded hover:bg-[var(--muted)] transition-colors disabled:opacity-50"
+            title={isEditing ? "Save edit" : "Edit narrative"}
+            aria-label={isEditing ? "Save edit" : "Edit narrative"}
+          >
+            {isEditing ? (
+              <Save className={cn("w-4 h-4", isSaving && "animate-pulse")} />
+            ) : (
+              <Pencil className="w-4 h-4" />
+            )}
+          </button>
+          {isEditing && (
+            <button
+              onClick={() => setIsEditing(false)}
+              className="p-1.5 rounded hover:bg-[var(--muted)] transition-colors"
+              title="Cancel edit"
+              aria-label="Cancel edit"
+            >
+              <Undo2 className="w-4 h-4" />
+            </button>
+          )}
+          <button
+            onClick={handleShowVersions}
+            disabled={loadingVersions}
+            className={cn(
+              "p-1.5 rounded hover:bg-[var(--muted)] transition-colors disabled:opacity-50",
+              showVersions && "bg-[var(--muted)]",
+            )}
+            title="Version history"
+            aria-label="Version history"
+          >
+            <History className={cn("w-4 h-4", loadingVersions && "animate-spin")} />
+          </button>
+          <button
             onClick={onRegenerate}
-            disabled={isRegenerating}
+            disabled={isRegenerating || isEditing}
             className="p-1.5 rounded hover:bg-[var(--muted)] transition-colors disabled:opacity-50"
             title="Regenerate"
             aria-label="Regenerate narrative"
@@ -207,7 +309,14 @@ export function NarrativePanel({ narrative, extractionId, onRegenerate, isRegene
         <p className="text-xs text-red-600 bg-red-50 p-2 rounded">{downloadError}</p>
       )}
 
-      {hasCitations ? (
+      {isEditing ? (
+        <textarea
+          value={editText}
+          onChange={(e) => setEditText(e.target.value)}
+          className="w-full min-h-[200px] p-4 rounded-md border border-blue-300 bg-white text-sm leading-relaxed font-mono resize-y focus:outline-none focus:ring-2 focus:ring-blue-400"
+          aria-label="Edit narrative text"
+        />
+      ) : hasCitations ? (
         <div
           aria-live="polite"
           className="prose prose-sm max-w-none text-sm leading-relaxed bg-[var(--muted)] p-4 rounded-md"
@@ -232,6 +341,48 @@ export function NarrativePanel({ narrative, extractionId, onRegenerate, isRegene
             ),
           }}
         />
+      )}
+
+      {showVersions && versions.length > 0 && (
+        <div className="space-y-2 pt-2 border-t border-[var(--border)]">
+          <h4 className="text-xs font-semibold text-[var(--muted-foreground)] flex items-center gap-1.5 uppercase tracking-wide">
+            <History className="w-3.5 h-3.5" />
+            Version History
+          </h4>
+          <div className="space-y-1.5 max-h-48 overflow-y-auto">
+            {versions.map((v) => (
+              <div
+                key={v.id}
+                className="flex items-center justify-between p-2 rounded border border-[var(--border)] bg-[var(--muted)] text-xs"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="font-mono font-bold">v{v.version_number}</span>
+                  <span
+                    className={cn(
+                      "px-1.5 py-0.5 rounded text-[10px] font-medium",
+                      v.source === "ai"
+                        ? "bg-purple-100 text-purple-700"
+                        : v.source.startsWith("revert")
+                          ? "bg-yellow-100 text-yellow-700"
+                          : "bg-green-100 text-green-700",
+                    )}
+                  >
+                    {v.source === "ai" ? "AI Generated" : v.source === "human_edit" ? "Edited" : v.source}
+                  </span>
+                  <span className="text-[var(--muted-foreground)]">
+                    {new Date(v.created_at).toLocaleString()}
+                  </span>
+                </div>
+                <button
+                  onClick={() => handleRevert(v.version_number)}
+                  className="px-2 py-0.5 text-[10px] font-medium rounded border border-[var(--border)] hover:bg-white transition-colors"
+                >
+                  Restore
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
 
       {hasCitations && (

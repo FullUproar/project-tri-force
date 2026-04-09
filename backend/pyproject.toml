@@ -25,6 +25,7 @@ dependencies = [
     "stripe",
     "sentry-sdk[fastapi]",
     "slowapi",
+    "resend",
 ]
 
 [project.optional-dependencies]

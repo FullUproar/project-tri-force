@@ -91,28 +91,47 @@ async def list_organizations(
     db: AsyncSession = Depends(get_db),
     _tenant: Organization = Depends(get_admin_tenant),
 ):
-    """List all organizations with usage stats."""
-    orgs = await db.execute(select(Organization).order_by(Organization.created_at.desc()))
-    results = []
-
-    for org in orgs.scalars().all():
-        job_count = await db.execute(
-            select(func.count()).select_from(IngestionJob).where(IngestionJob.tenant_id == org.id)
+    """List all organizations with usage stats (single query, no N+1)."""
+    job_counts = (
+        select(
+            IngestionJob.tenant_id,
+            func.count().label("job_count"),
         )
-        extraction_count = await db.execute(
-            select(func.count()).select_from(ExtractionResult).where(ExtractionResult.tenant_id == org.id)
+        .group_by(IngestionJob.tenant_id)
+        .subquery()
+    )
+    extraction_counts = (
+        select(
+            ExtractionResult.tenant_id,
+            func.count().label("extraction_count"),
         )
+        .group_by(ExtractionResult.tenant_id)
+        .subquery()
+    )
 
-        results.append(OrgSummary(
+    query = (
+        select(
+            Organization,
+            func.coalesce(job_counts.c.job_count, 0).label("job_count"),
+            func.coalesce(extraction_counts.c.extraction_count, 0).label("extraction_count"),
+        )
+        .outerjoin(job_counts, Organization.id == job_counts.c.tenant_id)
+        .outerjoin(extraction_counts, Organization.id == extraction_counts.c.tenant_id)
+        .order_by(Organization.created_at.desc())
+    )
+
+    rows = await db.execute(query)
+    return [
+        OrgSummary(
             id=str(org.id),
             name=org.name,
             is_active=org.is_active,
             baa_signed_at=org.baa_signed_at.isoformat() if org.baa_signed_at else None,
-            job_count=job_count.scalar() or 0,
-            extraction_count=extraction_count.scalar() or 0,
-        ))
-
-    return results
+            job_count=jc,
+            extraction_count=ec,
+        )
+        for org, jc, ec in rows.all()
+    ]
 
 
 @router.post("/admin/organizations/{org_id}/sign-baa")

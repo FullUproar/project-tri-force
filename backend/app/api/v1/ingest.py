@@ -12,7 +12,7 @@ from app.core.logging import logger
 from app.dependencies import get_db
 
 MAX_FILE_SIZE = settings.max_upload_size_mb * 1024 * 1024
-from app.models.database import ExtractionResult, IngestionJob
+from app.models.database import Case, ExtractionResult, IngestionJob
 from app.models.schemas import (
     ClinicalNoteRequest,
     IngestionResponse,
@@ -29,6 +29,18 @@ from app.core.rate_limit import RATE_AUTH_INGESTION, limiter
 from app.core.security import get_current_tenant
 from app.models.database import Organization
 from app.services.llm.extraction import extract_prior_auth_data
+
+
+async def _resolve_case_id(
+    case_id: uuid.UUID | None, db: AsyncSession, tenant_id: uuid.UUID
+) -> uuid.UUID | None:
+    """Validate case_id belongs to tenant, return it or None."""
+    if not case_id:
+        return None
+    case = await db.get(Case, case_id)
+    if not case or case.tenant_id != tenant_id:
+        raise HTTPException(status_code=404, detail="Case not found")
+    return case.id
 
 router = APIRouter()
 
@@ -90,6 +102,7 @@ async def _process_text_ingestion(job_id: uuid.UUID, text: str):
                 tenant_id=job.tenant_id if job else None,
                 ingestion_job_id=job_id,
                 diagnosis_code=extraction.diagnosis_code,
+                procedure_cpt_codes=extraction.procedure_cpt_codes if extraction.procedure_cpt_codes else None,
                 conservative_treatments_failed=extraction.conservative_treatments_failed,
                 implant_type_requested=extraction.implant_type_requested,
                 robotic_assistance_required=extraction.robotic_assistance_required,
@@ -142,10 +155,13 @@ async def ingest_dicom(
     file: UploadFile,
     db: AsyncSession = Depends(get_db),
     tenant: Organization = Depends(get_current_tenant),
+    case_id: uuid.UUID | None = Query(default=None),
 ):
     """Ingest a DICOM file: extract metadata, strip PHI, store de-identified copy."""
     if not file.filename or not file.filename.lower().endswith(".dcm"):
         raise HTTPException(status_code=400, detail="File must be a .dcm DICOM file")
+
+    resolved_case_id = await _resolve_case_id(case_id, db, tenant.id)
 
     file_bytes = await file.read()
     _validate_file_size(file_bytes)
@@ -159,6 +175,7 @@ async def ingest_dicom(
 
     job = IngestionJob(
         tenant_id=tenant.id,
+        case_id=resolved_case_id,
         source_type="dicom",
         status="completed",
         file_key=file_key,
@@ -193,6 +210,7 @@ async def _ingest_note(
     background_tasks: BackgroundTasks,
     db: AsyncSession,
     tenant_id: uuid.UUID | None = None,
+    case_id: uuid.UUID | None = None,
 ) -> IngestionResponse:
     """Shared logic for clinical note ingestion."""
     if not text or not text.strip():
@@ -204,6 +222,7 @@ async def _ingest_note(
 
     job = IngestionJob(
         tenant_id=tenant_id,
+        case_id=case_id,
         source_type="clinical_note",
         status="pending",
         file_key=file_key,
@@ -232,12 +251,14 @@ async def ingest_clinical_note(
     db: AsyncSession = Depends(get_db),
     tenant: Organization = Depends(get_current_tenant),
     file: UploadFile | None = None,
+    case_id: uuid.UUID | None = Query(default=None),
 ):
     """Ingest a clinical note as text file upload."""
     if not file:
         raise HTTPException(status_code=400, detail="Provide a text file")
+    resolved_case_id = await _resolve_case_id(case_id, db, tenant.id)
     text = (await file.read()).decode("utf-8")
-    return await _ingest_note(text, file.filename or "upload.txt", background_tasks, db, tenant.id)
+    return await _ingest_note(text, file.filename or "upload.txt", background_tasks, db, tenant.id, resolved_case_id)
 
 
 @router.post("/clinical-note/text", response_model=IngestionResponse)
@@ -248,9 +269,11 @@ async def ingest_clinical_note_text(
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     tenant: Organization = Depends(get_current_tenant),
+    case_id: uuid.UUID | None = Query(default=None),
 ):
     """Ingest a clinical note as JSON text body."""
-    return await _ingest_note(body.text, "inline_note.txt", background_tasks, db, tenant.id)
+    resolved_case_id = await _resolve_case_id(case_id, db, tenant.id)
+    return await _ingest_note(body.text, "inline_note.txt", background_tasks, db, tenant.id, resolved_case_id)
 
 
 @router.post("/robotic-report", response_model=IngestionResponse)
@@ -261,10 +284,13 @@ async def ingest_robotic_report(
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     tenant: Organization = Depends(get_current_tenant),
+    case_id: uuid.UUID | None = Query(default=None),
 ):
     """Ingest a robotic report PDF: extract text, scrub PHI, run LLM extraction."""
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="File must be a .pdf file")
+
+    resolved_case_id = await _resolve_case_id(case_id, db, tenant.id)
 
     file_bytes = await file.read()
     _validate_file_size(file_bytes)
@@ -281,6 +307,7 @@ async def ingest_robotic_report(
 
     job = IngestionJob(
         tenant_id=tenant.id,
+        case_id=resolved_case_id,
         source_type="robotic_report",
         status="pending",
         file_key=file_key,
@@ -353,6 +380,7 @@ async def get_job(
             extraction = ExtractionResultResponse(
                 id=ext.id,
                 diagnosis_code=ext.diagnosis_code,
+                procedure_cpt_codes=ext.procedure_cpt_codes,
                 conservative_treatments_failed=ext.conservative_treatments_failed,
                 implant_type_requested=ext.implant_type_requested,
                 robotic_assistance_required=ext.robotic_assistance_required,

@@ -13,6 +13,7 @@ export interface IngestionResponse {
 export interface ExtractionResult {
   id: string;
   diagnosis_code: string | null;
+  procedure_cpt_codes: string[] | null;
   conservative_treatments_failed: string[] | null;
   implant_type_requested: string | null;
   robotic_assistance_required: boolean | null;
@@ -92,8 +93,9 @@ export async function uploadRoboticReport(file: File): Promise<IngestionResponse
   return res.json();
 }
 
-export async function uploadClinicalNoteText(text: string): Promise<IngestionResponse> {
-  const res = await fetch(`${API_BASE}/ingest/clinical-note/text`, {
+export async function uploadClinicalNoteText(text: string, caseId?: string): Promise<IngestionResponse> {
+  const params = caseId ? `?case_id=${caseId}` : "";
+  const res = await fetch(`${API_BASE}/ingest/clinical-note/text${params}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ text }),
@@ -228,6 +230,94 @@ export async function fetchGraphInsights(procedure: string, diagnosisCode?: stri
   const params = new URLSearchParams({ procedure });
   if (diagnosisCode) params.set("diagnosis_code", diagnosisCode);
   const res = await fetch(`${API_BASE}/graph/insights?${params}`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+// --- Cases ---
+
+export interface CaseResponse {
+  id: string;
+  short_id: string;
+  label: string | null;
+  status: string;
+  denial_reason: string | null;
+  created_at: string;
+  document_count: number;
+}
+
+export async function createCase(label?: string): Promise<CaseResponse> {
+  const res = await fetch(`${API_BASE}/cases`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(label ? { label } : {}),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function listCases(status?: string): Promise<CaseResponse[]> {
+  const params = new URLSearchParams();
+  if (status) params.set("status", status);
+  const res = await fetch(`${API_BASE}/cases?${params}`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function getCase(shortId: string): Promise<CaseResponse> {
+  const res = await fetch(`${API_BASE}/cases/${shortId}`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+// --- Narrative Editing ---
+
+export interface NarrativeVersion {
+  id: string;
+  version_number: number;
+  narrative_text: string;
+  source: string;
+  created_at: string;
+}
+
+export async function editNarrative(narrativeId: string, text: string): Promise<{ version: number }> {
+  const res = await fetch(`${API_BASE}/narrative/${narrativeId}/edit`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ narrative_text: text }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function getNarrativeVersions(narrativeId: string): Promise<NarrativeVersion[]> {
+  const res = await fetch(`${API_BASE}/narrative/${narrativeId}/versions`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function revertNarrative(narrativeId: string, versionNumber: number): Promise<void> {
+  const res = await fetch(`${API_BASE}/narrative/${narrativeId}/revert/${versionNumber}`, {
+    method: "POST",
+  });
+  if (!res.ok) throw new Error(await res.text());
+}
+
+// --- Appeal ---
+
+export async function generateAppeal(
+  extractionId: string,
+  denialReason: string,
+  additionalContext?: string,
+): Promise<NarrativeResponse> {
+  const res = await fetch(`${API_BASE}/extraction/${extractionId}/appeal`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      denial_reason: denialReason,
+      additional_context: additionalContext,
+    }),
+  });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }

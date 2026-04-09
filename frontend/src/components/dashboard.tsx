@@ -234,6 +234,11 @@ export function Dashboard() {
                       });
                   }}
                   isRegenerating={narrativeMutation.isPending}
+                  onNarrativeUpdate={(text) => {
+                    if (narrative) {
+                      setNarrative({ ...narrative, narrative_text: text });
+                    }
+                  }}
                 />
               </>
             )}

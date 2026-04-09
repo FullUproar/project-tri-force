@@ -38,6 +38,7 @@ def _get_narrative_chain(system_prompt: str | None = None):
         ("human", """Generate a payer submission narrative for the following clinical data:
 
 Diagnosis Code: {diagnosis_code}
+CPT Code(s): {cpt_codes}
 Conservative Treatments Failed: {treatments}
 Implant Requested: {implant}
 Robotic Assistance Required: {robotic}
@@ -138,6 +139,7 @@ async def generate_narrative(
     chain = _get_narrative_chain(system_prompt)
     invoke_args = {
         "diagnosis_code": extraction.diagnosis_code,
+        "cpt_codes": ", ".join(extraction.procedure_cpt_codes) if extraction.procedure_cpt_codes else "Not specified",
         "treatments": ", ".join(extraction.conservative_treatments_failed),
         "implant": extraction.implant_type_requested,
         "robotic": "Yes" if extraction.robotic_assistance_required else "No",

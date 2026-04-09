@@ -37,6 +37,10 @@ class OrthoPriorAuthData(BaseModel):
     """Structured extraction target for orthopaedic prior authorization."""
 
     diagnosis_code: str = Field(description="ICD-10 code, e.g. M17.11")
+    procedure_cpt_codes: list[str] = Field(
+        default_factory=list,
+        description="CPT codes for the requested procedure, e.g. ['27447'] for TKA",
+    )
     conservative_treatments_failed: list[str] = Field(
         default_factory=list,
         description="List of conservative treatments attempted and failed",
@@ -93,6 +97,7 @@ class SpinePainPriorAuthData(BaseModel):
 class ExtractionResultResponse(BaseModel):
     id: uuid.UUID
     diagnosis_code: str | None
+    procedure_cpt_codes: list[str] | None = None
     conservative_treatments_failed: list[str] | None
     implant_type_requested: str | None
     robotic_assistance_required: bool | None
@@ -138,3 +143,43 @@ class ProcessingStatusEvent(BaseModel):
     status: str
     step: str
     progress: float
+
+
+# --- Case Schemas ---
+
+
+class CreateCaseRequest(BaseModel):
+    label: str | None = None
+
+
+class CaseResponse(BaseModel):
+    id: uuid.UUID
+    short_id: str
+    label: str | None
+    status: str
+    denial_reason: str | None = None
+    created_at: datetime
+    document_count: int = 0
+
+
+# --- Narrative Version Schemas ---
+
+
+class NarrativeVersionResponse(BaseModel):
+    id: uuid.UUID
+    version_number: int
+    narrative_text: str
+    source: str  # "ai" or "human_edit"
+    created_at: datetime
+
+
+class EditNarrativeRequest(BaseModel):
+    narrative_text: str
+
+
+# --- Appeal Schemas ---
+
+
+class DenialReasonRequest(BaseModel):
+    denial_reason: str
+    additional_context: str | None = None  # any new evidence or notes

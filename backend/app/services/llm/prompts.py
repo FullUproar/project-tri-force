@@ -4,6 +4,7 @@ Given the following de-identified clinical text, extract the structured data req
 
 Rules:
 - diagnosis_code must be a valid ICD-10 code. Common ortho codes: M17.11 (primary OA, right knee), M17.12 (left knee), M16.11 (primary OA, right hip), M16.12 (left hip), M75.11 (rotator cuff tear, right), M75.12 (left).
+- procedure_cpt_codes: list of CPT codes for the requested procedure. Common ortho CPT codes: 27447 (TKA), 27130 (THA), 29827 (rotator cuff repair arthroscopic), 29828 (biceps tenodesis), S2900 (robotic-assisted surgery add-on). Extract if mentioned, otherwise infer from the procedure description.
 - conservative_treatments_failed: list ONLY treatments explicitly mentioned as attempted/failed in the text. Do NOT infer treatments that are not mentioned.
 - implant_type_requested: extract the exact implant name if mentioned, otherwise use "Not specified".
 - robotic_assistance_required: true ONLY if robotic-assisted surgery is explicitly mentioned (e.g., Mako, Velys, ROSA).

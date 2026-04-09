@@ -4,7 +4,7 @@ from io import BytesIO
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select
+from sqlalchemy import func, select
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import inch
@@ -15,8 +15,15 @@ from pydantic import BaseModel
 
 from app.core.security import get_current_tenant
 from app.dependencies import get_db
-from app.models.database import ExtractionResult, NarrativeCitation, Organization, PayerNarrative, PayerPolicy, PayerPolicyChunk
-from app.models.schemas import GenerateNarrativeRequest, NarrativeResponse, OrthoPriorAuthData
+from app.models.database import ExtractionResult, NarrativeCitation, NarrativeVersion, Organization, PayerNarrative, PayerPolicy, PayerPolicyChunk
+from app.models.schemas import (
+    DenialReasonRequest,
+    EditNarrativeRequest,
+    GenerateNarrativeRequest,
+    NarrativeResponse,
+    NarrativeVersionResponse,
+    OrthoPriorAuthData,
+)
 from app.services.llm.narrative import generate_narrative
 
 router = APIRouter()
@@ -100,6 +107,7 @@ async def create_narrative(
 
     extraction_data = OrthoPriorAuthData(
         diagnosis_code=ext.diagnosis_code or "Not found",
+        procedure_cpt_codes=ext.procedure_cpt_codes or [],
         conservative_treatments_failed=ext.conservative_treatments_failed or [],
         implant_type_requested=ext.implant_type_requested or "Not specified",
         robotic_assistance_required=ext.robotic_assistance_required or False,
@@ -166,6 +174,16 @@ async def create_narrative(
     db.add(narrative)
     await db.commit()
     await db.refresh(narrative)
+
+    # Save version 0 (AI-generated, immutable baseline)
+    v0 = NarrativeVersion(
+        narrative_id=narrative.id,
+        version_number=0,
+        narrative_text=narrative_text,
+        source="ai",
+    )
+    db.add(v0)
+    await db.commit()
 
     # Store citations if any were generated
     stored_citations = []
@@ -317,6 +335,7 @@ async def export_pdf(
     elements.append(Paragraph("Clinical Summary", section_style))
     fields = [
         f"<b>Diagnosis Code:</b> {ext.diagnosis_code or 'N/A'}",
+        f"<b>CPT Code(s):</b> {', '.join(ext.procedure_cpt_codes) if ext.procedure_cpt_codes else 'N/A'}",
         f"<b>Implant Requested:</b> {ext.implant_type_requested or 'N/A'}",
         f"<b>Robotic Assistance:</b> {'Yes' if ext.robotic_assistance_required else 'No'}",
         f"<b>Conservative Treatments Failed:</b> {', '.join(ext.conservative_treatments_failed or [])}",
@@ -331,13 +350,33 @@ async def export_pdf(
         elements.append(Paragraph(ext.clinical_justification, body_style))
 
     # Narrative
+    was_edited = False
     if narrative:
         elements.append(Spacer(1, 0.3 * inch))
         elements.append(Paragraph("Payer Submission Narrative", section_style))
         elements.append(Paragraph(narrative.narrative_text, body_style))
 
-    # AI Disclosure (Texas TRAIGA compliance)
+        # Check if narrative was human-edited
+        version_result = await db.execute(
+            select(NarrativeVersion)
+            .where(NarrativeVersion.narrative_id == narrative.id)
+            .where(NarrativeVersion.source == "human_edit")
+            .limit(1)
+        )
+        was_edited = version_result.scalar_one_or_none() is not None
+
+    # AI Disclosure (Texas TRAIGA compliance) — adaptive based on editing
     from app.services.llm.prompts import AI_DISCLOSURE_TEXT
+
+    if was_edited:
+        disclosure_text = (
+            "This prior authorization document was prepared with AI assistance using CortaLoom.AI. "
+            "AI technology (Anthropic Claude) was used to generate an initial draft narrative, "
+            "which was subsequently reviewed and edited by the submitting user. "
+            "CortaLoom is an administrative workflow tool and does not provide clinical recommendations."
+        )
+    else:
+        disclosure_text = AI_DISCLOSURE_TEXT
 
     disclosure_style = ParagraphStyle(
         "Disclosure", parent=styles["Normal"], fontSize=7, textColor="#888888",
@@ -345,7 +384,7 @@ async def export_pdf(
         borderPadding=6,
     )
     elements.append(Spacer(1, 0.3 * inch))
-    elements.append(Paragraph(f"<b>AI Disclosure:</b> {AI_DISCLOSURE_TEXT}", disclosure_style))
+    elements.append(Paragraph(f"<b>AI Disclosure:</b> {disclosure_text}", disclosure_style))
 
     # Footer
     elements.append(Spacer(1, 0.3 * inch))
@@ -364,4 +403,262 @@ async def export_pdf(
         buf,
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+# --- Narrative Editing ---
+
+
+@router.put("/narrative/{narrative_id}/edit")
+async def edit_narrative(
+    narrative_id: uuid.UUID,
+    body: EditNarrativeRequest,
+    db: AsyncSession = Depends(get_db),
+    tenant: Organization = Depends(get_current_tenant),
+):
+    """Save a human edit to a narrative. Creates a new version snapshot."""
+    narrative = await db.get(PayerNarrative, narrative_id)
+    if not narrative or narrative.tenant_id != tenant.id:
+        raise HTTPException(status_code=404, detail="Narrative not found")
+
+    # Get next version number
+    max_version_result = await db.execute(
+        select(func.max(NarrativeVersion.version_number))
+        .where(NarrativeVersion.narrative_id == narrative_id)
+    )
+    max_version = max_version_result.scalar() or 0
+    next_version = max_version + 1
+
+    # Save version snapshot
+    version = NarrativeVersion(
+        narrative_id=narrative_id,
+        version_number=next_version,
+        narrative_text=body.narrative_text,
+        source="human_edit",
+    )
+    db.add(version)
+
+    # Update current narrative text
+    narrative.narrative_text = body.narrative_text
+    await db.commit()
+
+    from app.core.audit import log_event
+    await log_event(
+        db, "narrative_edit", "payer_narrative", narrative_id,
+        metadata={"version": next_version},
+        tenant_id=tenant.id,
+    )
+    await db.commit()
+
+    return {
+        "status": "ok",
+        "narrative_id": str(narrative_id),
+        "version": next_version,
+        "source": "human_edit",
+    }
+
+
+@router.get("/narrative/{narrative_id}/versions", response_model=list[NarrativeVersionResponse])
+async def get_narrative_versions(
+    narrative_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    tenant: Organization = Depends(get_current_tenant),
+):
+    """Get the full version history of a narrative."""
+    narrative = await db.get(PayerNarrative, narrative_id)
+    if not narrative or narrative.tenant_id != tenant.id:
+        raise HTTPException(status_code=404, detail="Narrative not found")
+
+    result = await db.execute(
+        select(NarrativeVersion)
+        .where(NarrativeVersion.narrative_id == narrative_id)
+        .order_by(NarrativeVersion.version_number.desc())
+    )
+    versions = result.scalars().all()
+
+    return [
+        NarrativeVersionResponse(
+            id=v.id,
+            version_number=v.version_number,
+            narrative_text=v.narrative_text,
+            source=v.source,
+            created_at=v.created_at,
+        )
+        for v in versions
+    ]
+
+
+@router.post("/narrative/{narrative_id}/revert/{version_number}")
+async def revert_narrative(
+    narrative_id: uuid.UUID,
+    version_number: int,
+    db: AsyncSession = Depends(get_db),
+    tenant: Organization = Depends(get_current_tenant),
+):
+    """Revert a narrative to a specific version (creates a new version from the old snapshot)."""
+    narrative = await db.get(PayerNarrative, narrative_id)
+    if not narrative or narrative.tenant_id != tenant.id:
+        raise HTTPException(status_code=404, detail="Narrative not found")
+
+    # Find the target version
+    target_result = await db.execute(
+        select(NarrativeVersion)
+        .where(NarrativeVersion.narrative_id == narrative_id)
+        .where(NarrativeVersion.version_number == version_number)
+    )
+    target = target_result.scalar_one_or_none()
+    if not target:
+        raise HTTPException(status_code=404, detail="Version not found")
+
+    # Get next version number
+    max_version_result = await db.execute(
+        select(func.max(NarrativeVersion.version_number))
+        .where(NarrativeVersion.narrative_id == narrative_id)
+    )
+    max_version = max_version_result.scalar() or 0
+    next_version = max_version + 1
+
+    # Create a new version that's a copy of the target
+    revert_version = NarrativeVersion(
+        narrative_id=narrative_id,
+        version_number=next_version,
+        narrative_text=target.narrative_text,
+        source=f"revert_to_v{version_number}",
+    )
+    db.add(revert_version)
+
+    # Update current text
+    narrative.narrative_text = target.narrative_text
+    await db.commit()
+
+    return {
+        "status": "ok",
+        "narrative_id": str(narrative_id),
+        "reverted_to": version_number,
+        "new_version": next_version,
+    }
+
+
+# --- Appeal Letter Generation ---
+
+
+@router.post("/extraction/{extraction_id}/appeal", response_model=NarrativeResponse)
+async def generate_appeal(
+    extraction_id: uuid.UUID,
+    body: DenialReasonRequest,
+    db: AsyncSession = Depends(get_db),
+    tenant: Organization = Depends(get_current_tenant),
+):
+    """Generate an appeal letter based on the original narrative and the denial reason."""
+    from sqlalchemy.orm import selectinload
+
+    # Get extraction
+    result = await db.execute(
+        select(ExtractionResult)
+        .options(selectinload(ExtractionResult.ingestion_job))
+        .where(ExtractionResult.id == extraction_id)
+        .where(ExtractionResult.tenant_id == tenant.id)
+    )
+    ext = result.scalar_one_or_none()
+    if not ext:
+        raise HTTPException(status_code=404, detail="Extraction result not found")
+
+    # Get the most recent narrative (what was originally submitted)
+    narrative_result = await db.execute(
+        select(PayerNarrative)
+        .where(PayerNarrative.extraction_result_id == extraction_id)
+        .order_by(PayerNarrative.created_at.desc())
+        .limit(1)
+    )
+    original_narrative = narrative_result.scalar_one_or_none()
+
+    extraction_data = OrthoPriorAuthData(
+        diagnosis_code=ext.diagnosis_code or "Not found",
+        procedure_cpt_codes=ext.procedure_cpt_codes or [],
+        conservative_treatments_failed=ext.conservative_treatments_failed or [],
+        implant_type_requested=ext.implant_type_requested or "Not specified",
+        robotic_assistance_required=ext.robotic_assistance_required or False,
+        clinical_justification=ext.clinical_justification or "",
+        confidence_score=ext.confidence_score or 0.0,
+    )
+
+    # Build appeal context
+    appeal_context_parts = [f"DENIAL REASON: {body.denial_reason}"]
+    if original_narrative:
+        appeal_context_parts.append(f"ORIGINAL SUBMISSION NARRATIVE:\n{original_narrative.narrative_text}")
+    if body.additional_context:
+        appeal_context_parts.append(f"ADDITIONAL SUPPORTING EVIDENCE:\n{body.additional_context}")
+
+    # Look up payer criteria if we know the payer from the original narrative
+    payer_name = original_narrative.payer if original_narrative else None
+    procedure_name = original_narrative.procedure if original_narrative else None
+    payer_criteria = None
+
+    if payer_name and procedure_name:
+        policy_result = await db.execute(
+            select(PayerPolicy)
+            .where(PayerPolicy.payer == payer_name)
+            .where(PayerPolicy.procedure == procedure_name)
+            .where(PayerPolicy.status == "active")
+            .limit(1)
+        )
+        policy = policy_result.scalar_one_or_none()
+        if policy:
+            payer_criteria = policy.criteria
+
+    from app.services.llm.narrative import generate_narrative as gen_narrative
+
+    narrative_text, model_used, _, citations_raw = await gen_narrative(
+        extraction_data,
+        additional_context="\n\n".join(appeal_context_parts),
+        payer_name=payer_name,
+        procedure_name=procedure_name,
+        payer_criteria=payer_criteria,
+    )
+
+    appeal_narrative = PayerNarrative(
+        tenant_id=tenant.id,
+        extraction_result_id=extraction_id,
+        narrative_text=narrative_text,
+        model_used=model_used,
+        prompt_version="v4.0-appeal",
+        payer=payer_name,
+        procedure=procedure_name,
+    )
+    db.add(appeal_narrative)
+    await db.commit()
+    await db.refresh(appeal_narrative)
+
+    # Save version 0
+    v0 = NarrativeVersion(
+        narrative_id=appeal_narrative.id,
+        version_number=0,
+        narrative_text=narrative_text,
+        source="ai",
+    )
+    db.add(v0)
+
+    # Update extraction outcome to appealed
+    ext.outcome = "appealed"
+    await db.commit()
+
+    from app.core.audit import log_event
+    await log_event(
+        db, "appeal", "payer_narrative", appeal_narrative.id,
+        metadata={
+            "extraction_id": str(extraction_id),
+            "denial_reason": body.denial_reason[:200],
+            "original_narrative_id": str(original_narrative.id) if original_narrative else None,
+        },
+        tenant_id=tenant.id,
+    )
+    await db.commit()
+
+    return NarrativeResponse(
+        narrative_id=appeal_narrative.id,
+        narrative_text=narrative_text,
+        model_used=model_used,
+        prompt_version="v4.0-appeal",
+        payer=payer_name,
+        procedure=procedure_name,
     )

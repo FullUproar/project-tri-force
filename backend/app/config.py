@@ -31,6 +31,10 @@ class Settings(BaseSettings):
     stripe_overage_price_id: str = ""
     stripe_meter_id: str = ""
 
+    # Resend (email notifications)
+    resend_api_key: str = ""
+    resend_from_email: str = "CortaLoom <notifications@cortaloom.ai>"
+
     # Sentry
     sentry_dsn: str = ""
 
