@@ -80,6 +80,7 @@ async def _process_text_ingestion(job_id: uuid.UUID, text: str):
                     "presidio_redactions": scrub_result.presidio_count,
                     "total_redactions": scrub_result.total_redactions,
                 },
+                tenant_id=job.tenant_id,
             )
             await db.commit()
 
@@ -110,6 +111,7 @@ async def _process_text_ingestion(job_id: uuid.UUID, text: str):
                     "diagnosis_code": extraction.diagnosis_code,
                     "confidence": extraction.confidence_score,
                 },
+                tenant_id=job.tenant_id,
             )
             await db.commit()
 
@@ -167,6 +169,7 @@ async def ingest_dicom(
         db, "ingest", "ingestion_job", job.id,
         ip_address=request.client.host if request.client else None,
         metadata={"source_type": "dicom", "file_size": len(file_bytes)},
+        tenant_id=tenant.id,
     )
     await db.commit()
 
@@ -325,10 +328,14 @@ async def list_jobs(
 
 
 @router.get("/jobs/{job_id}", response_model=JobStatusResponse)
-async def get_job(job_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+async def get_job(
+    job_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    tenant: Organization = Depends(get_current_tenant),
+):
     """Get the status and results of an ingestion job."""
     job = await db.get(IngestionJob, job_id)
-    if not job:
+    if not job or job.tenant_id != tenant.id:
         raise HTTPException(status_code=404, detail="Job not found")
 
     extraction = None
@@ -364,10 +371,11 @@ async def retry_job(
     job_id: uuid.UUID,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
+    tenant: Organization = Depends(get_current_tenant),
 ):
     """Retry a failed job by re-running the extraction pipeline."""
     job = await db.get(IngestionJob, job_id)
-    if not job:
+    if not job or job.tenant_id != tenant.id:
         raise HTTPException(status_code=404, detail="Job not found")
     if job.status != "failed":
         raise HTTPException(status_code=400, detail="Only failed jobs can be retried")
@@ -398,8 +406,17 @@ async def retry_job(
 
 
 @router.get("/jobs/{job_id}/status")
-async def job_status_sse(job_id: uuid.UUID):
+async def job_status_sse(
+    job_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    tenant: Organization = Depends(get_current_tenant),
+):
     """SSE endpoint for real-time job processing status. Polls DB — survives deploys."""
+    # Verify tenant ownership before starting stream
+    job = await db.get(IngestionJob, job_id)
+    if not job or job.tenant_id != tenant.id:
+        raise HTTPException(status_code=404, detail="Job not found")
+
     from app.core.db import async_session
 
     async def event_stream() -> AsyncGenerator[str, None]:

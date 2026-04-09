@@ -211,6 +211,7 @@ async def record_extraction_usage(db: AsyncSession, tenant: Organization) -> boo
         await log_event(
             db, "budget_cap_reached", "organization", tenant.id,
             metadata={"overage_cost": overage_cost, "budget_cap": tenant.overage_budget_cap},
+            tenant_id=tenant.id,
         )
         await db.commit()
         return False
@@ -229,6 +230,7 @@ async def record_extraction_usage(db: AsyncSession, tenant: Organization) -> boo
         await log_event(
             db, "usage_alert_80pct", "organization", tenant.id,
             metadata={"usage_pct": round(usage_pct, 1), "count": current_count, "limit": included},
+            tenant_id=tenant.id,
         )
         logger.info("ALERT: %s at %.0f%% of extraction limit (%d/%d)",
                      tenant.name, usage_pct, current_count, included)
@@ -240,6 +242,7 @@ async def record_extraction_usage(db: AsyncSession, tenant: Organization) -> boo
         await log_event(
             db, "usage_alert_100pct", "organization", tenant.id,
             metadata={"usage_pct": round(usage_pct, 1), "count": current_count, "limit": included},
+            tenant_id=tenant.id,
         )
         logger.info("ALERT: %s has reached extraction limit (%d/%d) — overages begin",
                      tenant.name, current_count, included)

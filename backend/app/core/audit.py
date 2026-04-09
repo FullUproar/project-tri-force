@@ -18,10 +18,12 @@ async def log_event(
     resource_id: uuid.UUID | None = None,
     ip_address: str | None = None,
     metadata: dict | None = None,
+    tenant_id: uuid.UUID | None = None,
 ):
     """Write an audit log entry. Fire-and-forget — errors are logged, not raised."""
     try:
         entry = AuditLog(
+            tenant_id=tenant_id,
             action=action,
             resource_type=resource_type,
             resource_id=resource_id,
@@ -41,6 +43,7 @@ async def log_event_standalone(
     resource_id: uuid.UUID | None = None,
     ip_address: str | None = None,
     metadata: dict | None = None,
+    tenant_id: uuid.UUID | None = None,
 ):
     """Write an audit log using a standalone session (for background tasks)."""
     from app.core.db import async_session
@@ -48,6 +51,7 @@ async def log_event_standalone(
     try:
         async with async_session() as db:
             entry = AuditLog(
+                tenant_id=tenant_id,
                 action=action,
                 resource_type=resource_type,
                 resource_id=resource_id,

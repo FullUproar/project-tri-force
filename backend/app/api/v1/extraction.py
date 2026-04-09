@@ -13,8 +13,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from pydantic import BaseModel
 
+from app.core.security import get_current_tenant
 from app.dependencies import get_db
-from app.models.database import ExtractionResult, PayerNarrative
+from app.models.database import ExtractionResult, Organization, PayerNarrative
 from app.models.schemas import NarrativeResponse, OrthoPriorAuthData
 from app.services.llm.narrative import generate_narrative
 
@@ -42,10 +43,11 @@ async def override_extraction_fields(
     extraction_id: uuid.UUID,
     body: OverrideFieldsRequest,
     db: AsyncSession = Depends(get_db),
+    tenant: Organization = Depends(get_current_tenant),
 ):
     """Save user overrides to extraction fields and log what changed (QA audit trail)."""
     ext = await db.get(ExtractionResult, extraction_id)
-    if not ext:
+    if not ext or ext.tenant_id != tenant.id:
         raise HTTPException(status_code=404, detail="Extraction result not found")
 
     changes = {}
@@ -61,6 +63,7 @@ async def override_extraction_fields(
         await log_event(
             db, "user_override", "extraction_result", extraction_id,
             metadata={"fields_changed": list(changes.keys()), "changes": changes},
+            tenant_id=tenant.id,
         )
         await db.commit()
 
@@ -75,6 +78,7 @@ async def override_extraction_fields(
 async def create_narrative(
     extraction_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
+    tenant: Organization = Depends(get_current_tenant),
 ):
     """Generate a payer submission narrative from an extraction result."""
     from sqlalchemy.orm import selectinload
@@ -83,6 +87,7 @@ async def create_narrative(
         select(ExtractionResult)
         .options(selectinload(ExtractionResult.ingestion_job))
         .where(ExtractionResult.id == extraction_id)
+        .where(ExtractionResult.tenant_id == tenant.id)
     )
     ext = result.scalar_one_or_none()
     if not ext:
@@ -106,6 +111,7 @@ async def create_narrative(
     )
 
     narrative = PayerNarrative(
+        tenant_id=tenant.id,
         extraction_result_id=extraction_id,
         narrative_text=narrative_text,
         model_used=model_used,
@@ -120,6 +126,7 @@ async def create_narrative(
     await log_event(
         db, "narrative", "payer_narrative", narrative.id,
         metadata={"extraction_id": str(extraction_id), "model": model_used, "prompt_version": prompt_version},
+        tenant_id=tenant.id,
     )
     await db.commit()
 
@@ -140,6 +147,7 @@ async def update_outcome(
     extraction_id: uuid.UUID,
     body: UpdateOutcomeRequest,
     db: AsyncSession = Depends(get_db),
+    tenant: Organization = Depends(get_current_tenant),
 ):
     """Update the prior auth outcome for tracking."""
     valid_outcomes = {"approved", "denied", "pending", "appealed"}
@@ -147,7 +155,7 @@ async def update_outcome(
         raise HTTPException(status_code=400, detail=f"Outcome must be one of: {valid_outcomes}")
 
     ext = await db.get(ExtractionResult, extraction_id)
-    if not ext:
+    if not ext or ext.tenant_id != tenant.id:
         raise HTTPException(status_code=404, detail="Extraction result not found")
 
     ext.outcome = body.outcome
@@ -159,10 +167,11 @@ async def update_outcome(
 async def export_pdf(
     extraction_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
+    tenant: Organization = Depends(get_current_tenant),
 ):
     """Export the prior authorization as a formatted PDF."""
     ext = await db.get(ExtractionResult, extraction_id)
-    if not ext:
+    if not ext or ext.tenant_id != tenant.id:
         raise HTTPException(status_code=404, detail="Extraction result not found")
 
     # Find the most recent narrative for this extraction
