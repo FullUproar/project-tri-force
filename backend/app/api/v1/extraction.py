@@ -15,8 +15,8 @@ from pydantic import BaseModel
 
 from app.core.security import get_current_tenant
 from app.dependencies import get_db
-from app.models.database import ExtractionResult, Organization, PayerNarrative
-from app.models.schemas import NarrativeResponse, OrthoPriorAuthData
+from app.models.database import ExtractionResult, Organization, PayerNarrative, PayerPolicy
+from app.models.schemas import GenerateNarrativeRequest, NarrativeResponse, OrthoPriorAuthData
 from app.services.llm.narrative import generate_narrative
 
 router = APIRouter()
@@ -77,10 +77,15 @@ async def override_extraction_fields(
 @router.post("/extraction/{extraction_id}/narrative", response_model=NarrativeResponse)
 async def create_narrative(
     extraction_id: uuid.UUID,
+    body: GenerateNarrativeRequest | None = None,
     db: AsyncSession = Depends(get_db),
     tenant: Organization = Depends(get_current_tenant),
 ):
-    """Generate a payer submission narrative from an extraction result."""
+    """Generate a payer submission narrative from an extraction result.
+
+    Optionally accepts payer and procedure to generate a payer-specific narrative
+    tailored to that insurer's requirements.
+    """
     from sqlalchemy.orm import selectinload
 
     result = await db.execute(
@@ -106,8 +111,35 @@ async def create_narrative(
     if ext.ingestion_job and ext.ingestion_job.metadata_json:
         additional_context = f"Imaging metadata: {ext.ingestion_job.metadata_json}"
 
+    # Look up payer-specific criteria if payer is provided
+    payer_name = body.payer if body else None
+    procedure_name = body.procedure if body else None
+    payer_criteria = None
+
+    if payer_name:
+        # Auto-suggest procedure from diagnosis code if not explicitly provided
+        if not procedure_name:
+            from app.services.llm.prompts import suggest_procedure_from_diagnosis
+            procedure_name = suggest_procedure_from_diagnosis(ext.diagnosis_code)
+
+        if procedure_name:
+            policy_result = await db.execute(
+                select(PayerPolicy)
+                .where(PayerPolicy.payer == payer_name)
+                .where(PayerPolicy.procedure == procedure_name)
+                .where(PayerPolicy.status == "active")
+                .limit(1)
+            )
+            policy = policy_result.scalar_one_or_none()
+            if policy:
+                payer_criteria = policy.criteria
+
     narrative_text, model_used, prompt_version = await generate_narrative(
-        extraction_data, additional_context
+        extraction_data,
+        additional_context,
+        payer_name=payer_name,
+        procedure_name=procedure_name,
+        payer_criteria=payer_criteria,
     )
 
     narrative = PayerNarrative(
@@ -116,6 +148,8 @@ async def create_narrative(
         narrative_text=narrative_text,
         model_used=model_used,
         prompt_version=prompt_version,
+        payer=payer_name,
+        procedure=procedure_name,
     )
     db.add(narrative)
     await db.commit()
@@ -125,7 +159,13 @@ async def create_narrative(
 
     await log_event(
         db, "narrative", "payer_narrative", narrative.id,
-        metadata={"extraction_id": str(extraction_id), "model": model_used, "prompt_version": prompt_version},
+        metadata={
+            "extraction_id": str(extraction_id),
+            "model": model_used,
+            "prompt_version": prompt_version,
+            "payer": payer_name,
+            "procedure": procedure_name,
+        },
         tenant_id=tenant.id,
     )
     await db.commit()
@@ -135,6 +175,8 @@ async def create_narrative(
         narrative_text=narrative_text,
         model_used=model_used,
         prompt_version=prompt_version,
+        payer=payer_name,
+        procedure=procedure_name,
     )
 
 

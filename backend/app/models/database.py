@@ -135,6 +135,8 @@ class PayerNarrative(Base):
     narrative_text: Mapped[str] = mapped_column(Text)
     model_used: Mapped[str] = mapped_column(String(50))
     prompt_version: Mapped[str] = mapped_column(String(20))
+    payer: Mapped[str | None] = mapped_column(String(50))
+    procedure: Mapped[str | None] = mapped_column(String(100))
 
     extraction_result: Mapped["ExtractionResult"] = relationship(back_populates="narratives")
 

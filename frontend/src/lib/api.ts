@@ -46,6 +46,8 @@ export interface NarrativeResponse {
   narrative_text: string;
   model_used: string;
   prompt_version: string;
+  payer: string | null;
+  procedure: string | null;
 }
 
 export async function uploadDicom(file: File): Promise<IngestionResponse> {
@@ -97,10 +99,63 @@ export async function getJobStatus(jobId: string): Promise<JobStatusResponse> {
   return res.json();
 }
 
-export async function generateNarrative(extractionId: string): Promise<NarrativeResponse> {
+export async function generateNarrative(
+  extractionId: string,
+  payer?: string | null,
+  procedure?: string | null,
+): Promise<NarrativeResponse> {
+  const body: Record<string, string> = {};
+  if (payer) body.payer = payer;
+  if (procedure) body.procedure = procedure;
+
   const res = await fetch(`${API_BASE}/extraction/${extractionId}/narrative`, {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
   });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function fetchPayers(): Promise<string[]> {
+  const res = await fetch(`${API_BASE}/policies/payers`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function fetchProcedures(payer?: string): Promise<string[]> {
+  const url = payer
+    ? `${API_BASE}/policies/procedures?payer=${encodeURIComponent(payer)}`
+    : `${API_BASE}/policies/procedures`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export interface PayerReadinessResponse {
+  payer: string;
+  procedure: string;
+  readiness_score: number;
+  gaps: string[];
+  submission_portal: string;
+  criteria: Record<string, unknown>;
+}
+
+export async function checkPayerReadiness(
+  payer: string,
+  procedure: string,
+  treatmentsCount: number,
+  hasImaging: boolean,
+  symptomMonths: number,
+): Promise<PayerReadinessResponse> {
+  const params = new URLSearchParams({
+    payer,
+    procedure,
+    treatments_count: String(treatmentsCount),
+    has_imaging: String(hasImaging),
+    symptom_months: String(symptomMonths),
+  });
+  const res = await fetch(`${API_BASE}/policies/check?${params}`);
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }

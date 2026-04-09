@@ -7,9 +7,10 @@ from langchain_core.prompts import ChatPromptTemplate
 from app.config import settings
 from app.core.logging import logger
 from app.models.schemas import OrthoPriorAuthData
-from app.services.llm.prompts import NARRATIVE_SYSTEM_PROMPT
+from app.services.llm.prompts import NARRATIVE_SYSTEM_PROMPT, PAYER_NARRATIVE_SYSTEM_PROMPT
 
 PROMPT_VERSION = "v1.0"
+PAYER_PROMPT_VERSION = "v2.0-payer"
 MODEL_NAME = "claude-sonnet-4-20250514"
 
 LLM_TIMEOUT_SECONDS = 60
@@ -17,7 +18,7 @@ LLM_MAX_RETRIES = 2
 LLM_BACKOFF_BASE = 2  # seconds
 
 
-def _get_narrative_chain():
+def _get_narrative_chain(system_prompt: str | None = None):
     llm = ChatAnthropic(
         model=MODEL_NAME,
         temperature=0.3,
@@ -26,7 +27,7 @@ def _get_narrative_chain():
     )
 
     prompt = ChatPromptTemplate.from_messages([
-        ("system", NARRATIVE_SYSTEM_PROMPT),
+        ("system", system_prompt or NARRATIVE_SYSTEM_PROMPT),
         ("human", """Generate a payer submission narrative for the following clinical data:
 
 Diagnosis Code: {diagnosis_code}
@@ -45,13 +46,29 @@ Additional Context (if available):
 async def generate_narrative(
     extraction: OrthoPriorAuthData,
     additional_context: str = "",
+    payer_name: str | None = None,
+    procedure_name: str | None = None,
+    payer_criteria: dict | None = None,
 ) -> tuple[str, str, str]:
     """Generate a payer submission narrative from extraction results.
 
     Includes a 60-second timeout and up to 2 retries with exponential backoff
     for transient failures.
     """
-    chain = _get_narrative_chain()
+    # Build payer-specific prompt if payer criteria provided
+    system_prompt = None
+    prompt_version = PROMPT_VERSION
+    if payer_name and payer_criteria:
+        from app.services.llm.prompts import build_payer_criteria_section
+        criteria_section = build_payer_criteria_section(payer_criteria)
+        system_prompt = PAYER_NARRATIVE_SYSTEM_PROMPT.format(
+            payer_name=payer_name,
+            procedure_name=procedure_name or "the requested procedure",
+            payer_criteria_section=criteria_section,
+        )
+        prompt_version = PAYER_PROMPT_VERSION
+
+    chain = _get_narrative_chain(system_prompt)
     invoke_args = {
         "diagnosis_code": extraction.diagnosis_code,
         "treatments": ", ".join(extraction.conservative_treatments_failed),
@@ -81,7 +98,7 @@ async def generate_narrative(
                 attempt + 1,
             )
 
-            return narrative_text, MODEL_NAME, PROMPT_VERSION
+            return narrative_text, MODEL_NAME, prompt_version
 
         except asyncio.TimeoutError:
             last_exception = TimeoutError(

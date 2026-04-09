@@ -2,7 +2,7 @@ import asyncio
 import uuid
 from collections.abc import AsyncGenerator
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -123,7 +123,12 @@ async def _process_text_ingestion(job_id: uuid.UUID, text: str):
                 job = await err_db.get(IngestionJob, job_id)
                 if job:
                     job.status = "failed"
-                    job.error_message = str(e)
+                    # Sanitize error message — never expose internal paths or stack traces
+                    error_str = str(e)
+                    if any(keyword in error_str.lower() for keyword in ["traceback", "/app/", "/usr/", "file ", "line "]):
+                        job.error_message = "Processing failed. Please retry or contact support."
+                    else:
+                        job.error_message = error_str[:500]
                     await err_db.commit()
 
 
@@ -301,8 +306,8 @@ async def ingest_robotic_report(
 
 @router.get("/jobs")
 async def list_jobs(
-    limit: int = 20,
-    offset: int = 0,
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
     db: AsyncSession = Depends(get_db),
     tenant: Organization = Depends(get_current_tenant),
 ):

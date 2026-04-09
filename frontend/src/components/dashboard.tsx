@@ -56,7 +56,10 @@ export function Dashboard() {
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [narrative, setNarrative] = useState<NarrativeResponse | null>(null);
   const [demoLoading, setDemoLoading] = useState(false);
+  const [demoError, setDemoError] = useState<string | null>(null);
   const [showWorkSurface, setShowWorkSurface] = useState(false);
+  const [selectedPayer, setSelectedPayer] = useState<string | null>(null);
+  const [selectedProcedure, setSelectedProcedure] = useState<string | null>(null);
 
   const { data: orgInfo } = useQuery<OrgInfo>({
     queryKey: ["me"],
@@ -79,7 +82,8 @@ export function Dashboard() {
   });
 
   const narrativeMutation = useMutation({
-    mutationFn: generateNarrative,
+    mutationFn: ({ extractionId, payer, procedure }: { extractionId: string; payer: string | null; procedure: string | null }) =>
+      generateNarrative(extractionId, payer, procedure),
     onSuccess: (data) => setNarrative(data),
   });
 
@@ -96,23 +100,31 @@ export function Dashboard() {
 
   const handleDemo = async () => {
     setDemoLoading(true);
+    setDemoError(null);
     try {
       const data = await uploadClinicalNoteText(SAMPLE_NOTE);
       setActiveJobId(data.job_id);
       setNarrative(null);
     } catch {
-      // silently fail
+      setDemoError("Failed to load demo. Please try again.");
     } finally {
       setDemoLoading(false);
     }
   };
 
   const handleGenerateNarrative = useCallback(
-    (extractionId: string) => {
-      narrativeMutation.mutate(extractionId);
+    (extractionId: string, payer: string | null, procedure: string | null) => {
+      narrativeMutation.mutate({ extractionId, payer, procedure });
     },
     [narrativeMutation]
   );
+
+  const handleNewCase = () => {
+    setActiveJobId(null);
+    setNarrative(null);
+    setSelectedPayer(null);
+    setSelectedProcedure(null);
+  };
 
   const extraction = jobStatus?.extraction_result || null;
   const isProcessing = activeJobId && jobStatus?.status === "processing";
@@ -143,12 +155,17 @@ export function Dashboard() {
           {showWelcome && !isASC && (
             <WelcomeHero onTryDemo={handleDemo} isDemoLoading={demoLoading} />
           )}
+          {demoError && (
+            <div className="lg:col-span-5">
+              <p className="text-sm text-red-600 bg-red-50 p-3 rounded-lg border border-red-200">{demoError}</p>
+            </div>
+          )}
           <div className="lg:col-span-2 space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold">Clinical Documents</h2>
               {activeJobId && (
                 <button
-                  onClick={() => { setActiveJobId(null); setNarrative(null); }}
+                  onClick={handleNewCase}
                   className="text-xs px-3 py-1 rounded border border-[var(--border)] hover:bg-[var(--muted)] transition-colors"
                 >
                   New Case
@@ -184,16 +201,38 @@ export function Dashboard() {
               <>
                 <CaseCard job={jobStatus} />
                 <AISummary extraction={extraction} />
-                <ReadinessScore extraction={extraction} />
+                <ReadinessScore
+                  extraction={extraction}
+                  selectedPayer={selectedPayer}
+                  selectedProcedure={selectedProcedure}
+                />
                 <PriorAuthForm
                   extraction={extraction}
                   onGenerateNarrative={handleGenerateNarrative}
                   isGenerating={narrativeMutation.isPending}
+                  selectedPayer={selectedPayer}
+                  selectedProcedure={selectedProcedure}
+                  onPayerChange={setSelectedPayer}
+                  onProcedureChange={setSelectedProcedure}
                 />
+                {narrativeMutation.isError && (
+                  <div className="p-3 rounded-lg bg-red-50 border border-red-200">
+                    <p className="text-sm text-red-700">
+                      Narrative generation failed. Please try again.
+                    </p>
+                  </div>
+                )}
                 <NarrativePanel
                   narrative={narrative}
                   extractionId={extraction?.id || null}
-                  onRegenerate={() => { if (extraction?.id) narrativeMutation.mutate(extraction.id); }}
+                  onRegenerate={() => {
+                    if (extraction?.id)
+                      narrativeMutation.mutate({
+                        extractionId: extraction.id,
+                        payer: selectedPayer,
+                        procedure: selectedProcedure,
+                      });
+                  }}
                   isRegenerating={narrativeMutation.isPending}
                 />
               </>

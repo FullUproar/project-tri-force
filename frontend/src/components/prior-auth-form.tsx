@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
+import { useQuery } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { cn } from "@/lib/utils";
-import { updateOutcome, type ExtractionResult, type PriorAuthOutcome } from "@/lib/api";
+import { updateOutcome, fetchPayers, fetchProcedures, type ExtractionResult, type PriorAuthOutcome } from "@/lib/api";
 import { getICD10Description } from "@/lib/icd10";
 import { TreatmentChecklist } from "@/components/treatment-checklist";
 
@@ -18,6 +19,26 @@ const schema = z.object({
 });
 
 type FormData = z.infer<typeof schema>;
+
+// ICD-10 prefix to suggested procedure (mirrors backend logic)
+const ICD10_TO_PROCEDURE: Record<string, string> = {
+  M17: "Total Knee Replacement",
+  M16: "Total Hip Replacement",
+  M75: "Rotator Cuff Repair",
+  M54: "Lumbar Fusion",
+  M47: "Lumbar Fusion",
+  M51: "Lumbar Fusion",
+  M48: "Lumbar Fusion",
+  G89: "Spinal Cord Stimulator",
+};
+
+function suggestProcedure(diagnosisCode: string | null): string | null {
+  if (!diagnosisCode) return null;
+  const prefix = diagnosisCode.includes(".")
+    ? diagnosisCode.split(".")[0]
+    : diagnosisCode.slice(0, 3);
+  return ICD10_TO_PROCEDURE[prefix] || null;
+}
 
 function ConfidenceBadge({ score }: { score: number | null }) {
   if (score === null) return null;
@@ -36,17 +57,42 @@ function ConfidenceBadge({ score }: { score: number | null }) {
 
 interface PriorAuthFormProps {
   extraction: ExtractionResult | null;
-  onGenerateNarrative: (extractionId: string) => void;
+  onGenerateNarrative: (extractionId: string, payer: string | null, procedure: string | null) => void;
   isGenerating: boolean;
+  selectedPayer: string | null;
+  selectedProcedure: string | null;
+  onPayerChange: (payer: string | null) => void;
+  onProcedureChange: (procedure: string | null) => void;
 }
 
-export function PriorAuthForm({ extraction, onGenerateNarrative, isGenerating }: PriorAuthFormProps) {
+export function PriorAuthForm({
+  extraction,
+  onGenerateNarrative,
+  isGenerating,
+  selectedPayer,
+  selectedProcedure,
+  onPayerChange,
+  onProcedureChange,
+}: PriorAuthFormProps) {
   const {
     register,
     reset,
     formState: { errors },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
+  });
+
+  const { data: payers } = useQuery({
+    queryKey: ["payers"],
+    queryFn: fetchPayers,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: procedures } = useQuery({
+    queryKey: ["procedures", selectedPayer],
+    queryFn: () => fetchProcedures(selectedPayer || undefined),
+    enabled: !!selectedPayer,
+    staleTime: 5 * 60 * 1000,
   });
 
   useEffect(() => {
@@ -59,8 +105,13 @@ export function PriorAuthForm({ extraction, onGenerateNarrative, isGenerating }:
         robotic_assistance_required: extraction.robotic_assistance_required || false,
         clinical_justification: extraction.clinical_justification || "",
       });
+      // Auto-suggest procedure from diagnosis code
+      if (!selectedProcedure) {
+        const suggested = suggestProcedure(extraction.diagnosis_code);
+        if (suggested) onProcedureChange(suggested);
+      }
     }
-  }, [extraction, reset]);
+  }, [extraction, reset, selectedProcedure, onProcedureChange]);
 
   return (
     <div className="space-y-4">
@@ -75,6 +126,54 @@ export function PriorAuthForm({ extraction, onGenerateNarrative, isGenerating }:
         </div>
       ) : (
         <form className="space-y-4">
+          {/* Payer Selection */}
+          <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg space-y-3">
+            <p className="text-sm font-bold text-blue-900">Target Payer</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label htmlFor="payer-select" className="block text-xs font-medium text-blue-800 mb-1">Insurance Company</label>
+                <select
+                  id="payer-select"
+                  value={selectedPayer || ""}
+                  onChange={(e) => {
+                    onPayerChange(e.target.value || null);
+                    onProcedureChange(null);
+                  }}
+                  className="w-full px-3 py-2 border border-blue-300 rounded-md bg-white text-sm"
+                >
+                  <option value="">Select payer...</option>
+                  {payers?.map((p) => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label htmlFor="procedure-select" className="block text-xs font-medium text-blue-800 mb-1">Procedure</label>
+                <select
+                  id="procedure-select"
+                  value={selectedProcedure || ""}
+                  onChange={(e) => onProcedureChange(e.target.value || null)}
+                  className="w-full px-3 py-2 border border-blue-300 rounded-md bg-white text-sm"
+                >
+                  <option value="">Select procedure...</option>
+                  {procedures?.map((p) => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            {selectedPayer && selectedProcedure && (
+              <p className="text-xs text-blue-700">
+                Narrative will be tailored to {selectedPayer}&apos;s specific requirements for {selectedProcedure}
+              </p>
+            )}
+            {selectedPayer && !selectedProcedure && (
+              <p className="text-xs text-blue-600">
+                Select a procedure to unlock payer-specific narrative generation
+              </p>
+            )}
+          </div>
+
           <div>
             <label htmlFor="diagnosis_code" className="block text-sm font-medium mb-1">ICD-10 Diagnosis Code</label>
             <input
@@ -154,7 +253,7 @@ export function PriorAuthForm({ extraction, onGenerateNarrative, isGenerating }:
 
           <button
             type="button"
-            onClick={() => onGenerateNarrative(extraction.id)}
+            onClick={() => onGenerateNarrative(extraction.id, selectedPayer, selectedProcedure)}
             disabled={isGenerating}
             className={cn(
               "w-full py-3 rounded-md text-sm font-semibold transition-colors",
@@ -162,7 +261,11 @@ export function PriorAuthForm({ extraction, onGenerateNarrative, isGenerating }:
               "hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
             )}
           >
-            {isGenerating ? "Generating..." : "Generate Payer Submission Narrative"}
+            {isGenerating
+              ? "Generating..."
+              : selectedPayer
+                ? `Generate ${selectedPayer}-Specific Narrative`
+                : "Generate Payer Submission Narrative"}
           </button>
         </form>
       )}

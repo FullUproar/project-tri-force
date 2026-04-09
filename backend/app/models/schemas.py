@@ -108,11 +108,18 @@ class ClinicalNoteRequest(BaseModel):
 # --- Narrative Schemas ---
 
 
+class GenerateNarrativeRequest(BaseModel):
+    payer: str | None = None  # e.g., "UHC", "Aetna", "BCBS", "Cigna", "Humana"
+    procedure: str | None = None  # e.g., "Total Knee Replacement"
+
+
 class NarrativeResponse(BaseModel):
     narrative_id: uuid.UUID
     narrative_text: str
     model_used: str
     prompt_version: str
+    payer: str | None = None
+    procedure: str | None = None
 
 
 # --- SSE Schemas ---

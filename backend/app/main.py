@@ -120,7 +120,15 @@ async def lifespan(app: FastAPI):
     # Start periodic cleanup background task
     cleanup_task = asyncio.create_task(_periodic_cleanup_loop())
 
-    logger.info("CortaLoom API started")
+    # Validate configuration in production
+    if settings.environment == "production":
+        if settings.api_key.get_secret_value() == "dev-key-change-me":
+            raise RuntimeError(
+                "FATAL: Default API key detected in production. "
+                "Set TF_API_KEY to a secure value."
+            )
+
+    logger.info("CortaLoom API started (env=%s)", settings.environment)
     yield
 
     # --- Shutdown ---

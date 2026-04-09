@@ -49,3 +49,69 @@ Given the structured clinical data below, generate a formal prior authorization 
 6. Maintains a professional, clinical tone appropriate for insurance medical review
 
 The narrative should be 200-400 words. Do NOT include any patient identifying information. Do NOT include placeholder fields like [Patient Name] or [Date]. Write the narrative in third person referring to "the patient"."""
+
+PAYER_NARRATIVE_SYSTEM_PROMPT = """You are a medical documentation specialist generating payer submission narratives for orthopaedic/spine surgery prior authorization.
+
+You are writing a narrative specifically for submission to {payer_name} for a {procedure_name} procedure.
+
+Given the structured clinical data below, generate a formal prior authorization narrative letter that:
+1. States the diagnosis with ICD-10 code
+2. Documents failed conservative treatments with approximate durations
+3. Explains why surgical intervention is now medically necessary
+4. Specifies the requested procedure and implant
+5. Notes if robotic assistance is medically indicated and why
+6. Maintains a professional, clinical tone appropriate for {payer_name}'s medical review team
+
+{payer_name} SPECIFIC REQUIREMENTS FOR {procedure_name}:
+{payer_criteria_section}
+
+CRITICAL INSTRUCTIONS:
+- Explicitly address EACH of {payer_name}'s specific requirements listed above in the narrative.
+- For requirements that are met by the clinical data, state clearly how they are met (e.g., "The patient has completed 8 weeks of physical therapy" when PT >= 6 weeks is required).
+- For requirements that are NOT met by the clinical data, do NOT draw attention to the gap — simply omit.
+- Use clinical language and formatting that {payer_name}'s utilization review nurses expect to see.
+- Reference the specific imaging type required by {payer_name} if imaging data is available.
+
+The narrative should be 250-450 words. Do NOT include any patient identifying information. Do NOT include placeholder fields like [Patient Name] or [Date]. Write the narrative in third person referring to "the patient"."""
+
+
+def build_payer_criteria_section(criteria: dict) -> str:
+    """Build human-readable criteria section from payer policy JSON."""
+    lines = []
+    if criteria.get("conservative_treatment_min_months"):
+        lines.append(f"- Minimum conservative treatment duration: {criteria['conservative_treatment_min_months']} months")
+    if criteria.get("required_modalities"):
+        modalities = ", ".join(criteria["required_modalities"])
+        lines.append(f"- Required treatment modalities: {modalities}")
+    if criteria.get("imaging_required"):
+        lines.append(f"- Required imaging: {criteria['imaging_required']}")
+    if criteria.get("imaging_max_age_months"):
+        lines.append(f"- Imaging must be within: {criteria['imaging_max_age_months']} months of submission")
+    if criteria.get("functional_impairment_required"):
+        lines.append("- Functional impairment documentation: Required")
+    if criteria.get("trial_required"):
+        lines.append("- Trial procedure required before permanent implant: Yes")
+    if criteria.get("submission_portal"):
+        lines.append(f"- Submission portal: {criteria['submission_portal']}")
+    return "\n".join(lines) if lines else "No specific criteria on file for this payer/procedure combination."
+
+
+# ICD-10 prefix to suggested procedure mapping
+ICD10_TO_PROCEDURE = {
+    "M17": "Total Knee Replacement",
+    "M16": "Total Hip Replacement",
+    "M75": "Rotator Cuff Repair",
+    "M54": "Lumbar Fusion",
+    "M47": "Lumbar Fusion",
+    "M51": "Lumbar Fusion",
+    "M48": "Lumbar Fusion",
+    "G89": "Spinal Cord Stimulator",
+}
+
+
+def suggest_procedure_from_diagnosis(diagnosis_code: str | None) -> str | None:
+    """Suggest a procedure based on ICD-10 code prefix."""
+    if not diagnosis_code:
+        return None
+    prefix = diagnosis_code.split(".")[0] if "." in diagnosis_code else diagnosis_code[:3]
+    return ICD10_TO_PROCEDURE.get(prefix)

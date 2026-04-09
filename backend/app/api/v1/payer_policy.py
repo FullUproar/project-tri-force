@@ -58,6 +58,34 @@ async def list_payers(
     return [row[0] for row in result.all()]
 
 
+@router.get("/policies/procedures")
+async def list_procedures(
+    payer: str | None = Query(None, description="Filter procedures by payer"),
+    db: AsyncSession = Depends(get_db),
+    _tenant: Organization = Depends(get_current_tenant),
+):
+    """List distinct procedure names, optionally filtered by payer."""
+    from sqlalchemy import distinct
+
+    query = select(distinct(PayerPolicy.procedure)).where(PayerPolicy.status == "active")
+    if payer:
+        query = query.where(PayerPolicy.payer == payer)
+    result = await db.execute(query)
+    return [row[0] for row in result.all()]
+
+
+@router.get("/policies/suggest-procedure")
+async def suggest_procedure(
+    diagnosis_code: str = Query(..., description="ICD-10 diagnosis code"),
+    _tenant: Organization = Depends(get_current_tenant),
+):
+    """Suggest a procedure based on ICD-10 code for payer policy lookup."""
+    from app.services.llm.prompts import suggest_procedure_from_diagnosis
+
+    procedure = suggest_procedure_from_diagnosis(diagnosis_code)
+    return {"diagnosis_code": diagnosis_code, "suggested_procedure": procedure}
+
+
 @router.get("/policies/check")
 async def check_readiness_against_policy(
     payer: str = Query(..., description="Payer name (UHC, Aetna, BCBS, Cigna, Humana)"),

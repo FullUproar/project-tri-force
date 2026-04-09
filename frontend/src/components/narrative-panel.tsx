@@ -17,6 +17,7 @@ export function NarrativePanel({ narrative, extractionId, onRegenerate, isRegene
   const [copied, setCopied] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
 
   if (!narrative) return null;
 
@@ -29,10 +30,11 @@ export function NarrativePanel({ narrative, extractionId, onRegenerate, isRegene
   const handleDownload = async () => {
     if (!extractionId) return;
     setDownloading(true);
+    setDownloadError(null);
     try {
       await exportNarrativePdf(extractionId);
     } catch {
-      // silently fail — user can copy text instead
+      setDownloadError("PDF export failed. You can copy the text instead.");
     } finally {
       setDownloading(false);
     }
@@ -41,7 +43,14 @@ export function NarrativePanel({ narrative, extractionId, onRegenerate, isRegene
   return (
     <div className="space-y-3 p-4 border border-[var(--border)] rounded-lg">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-bold">Payer Submission Narrative</h3>
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm font-bold">Payer Submission Narrative</h3>
+          {narrative.payer && (
+            <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">
+              {narrative.payer}
+            </span>
+          )}
+        </div>
         <div className="flex items-center gap-2">
           <span className="text-xs text-[var(--muted-foreground)]">
             {narrative.model_used} ({narrative.prompt_version})
@@ -97,6 +106,10 @@ export function NarrativePanel({ narrative, extractionId, onRegenerate, isRegene
           </button>
         </div>
       </div>
+
+      {downloadError && (
+        <p className="text-xs text-red-600 bg-red-50 p-2 rounded">{downloadError}</p>
+      )}
 
       <div
         aria-live="polite"
