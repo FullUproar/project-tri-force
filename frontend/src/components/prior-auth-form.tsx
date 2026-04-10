@@ -127,11 +127,11 @@ export function PriorAuthForm({
       ) : (
         <form className="space-y-4">
           {/* Payer Selection */}
-          <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg space-y-3">
-            <p className="text-sm font-bold text-blue-900">Target Payer</p>
+          <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg space-y-3">
+            <p className="text-sm font-bold text-gray-900">Target Payer</p>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label htmlFor="payer-select" className="block text-xs font-medium text-blue-800 mb-1">Insurance Company</label>
+                <label htmlFor="payer-select" className="block text-xs font-medium text-gray-700 mb-1">Insurance Company</label>
                 <select
                   id="payer-select"
                   value={selectedPayer || ""}
@@ -139,7 +139,7 @@ export function PriorAuthForm({
                     onPayerChange(e.target.value || null);
                     onProcedureChange(null);
                   }}
-                  className="w-full px-3 py-2 border border-blue-300 rounded-md bg-white text-sm"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-sm text-gray-900"
                 >
                   <option value="">Select payer...</option>
                   {payers?.map((p) => (
@@ -148,12 +148,12 @@ export function PriorAuthForm({
                 </select>
               </div>
               <div>
-                <label htmlFor="procedure-select" className="block text-xs font-medium text-blue-800 mb-1">Procedure</label>
+                <label htmlFor="procedure-select" className="block text-xs font-medium text-gray-700 mb-1">Procedure</label>
                 <select
                   id="procedure-select"
                   value={selectedProcedure || ""}
                   onChange={(e) => onProcedureChange(e.target.value || null)}
-                  className="w-full px-3 py-2 border border-blue-300 rounded-md bg-white text-sm"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-sm text-gray-900"
                 >
                   <option value="">Select procedure...</option>
                   {procedures?.map((p) => (
@@ -163,12 +163,12 @@ export function PriorAuthForm({
               </div>
             </div>
             {selectedPayer && selectedProcedure && (
-              <p className="text-xs text-blue-700">
+              <p className="text-xs text-indigo-700 font-medium">
                 Narrative will be tailored to {selectedPayer}&apos;s specific requirements for {selectedProcedure}
               </p>
             )}
             {selectedPayer && !selectedProcedure && (
-              <p className="text-xs text-blue-600">
+              <p className="text-xs text-gray-500">
                 Select a procedure to unlock payer-specific narrative generation
               </p>
             )}
