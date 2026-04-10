@@ -33,8 +33,15 @@ def _get_narrative_chain(system_prompt: str | None = None):
         timeout=LLM_TIMEOUT_SECONDS,
     )
 
+    # If system_prompt is pre-formatted (payer-specific/cited modes), escape any
+    # remaining curly braces so LangChain doesn't try to interpret them as variables
+    sys_msg = system_prompt or NARRATIVE_SYSTEM_PROMPT
+    if system_prompt:
+        # Escape braces in the pre-formatted prompt so ChatPromptTemplate doesn't choke
+        sys_msg = system_prompt.replace("{", "{{").replace("}", "}}")
+
     prompt = ChatPromptTemplate.from_messages([
-        ("system", system_prompt or NARRATIVE_SYSTEM_PROMPT),
+        ("system", sys_msg),
         ("human", """Generate a payer submission narrative for the following clinical data:
 
 Diagnosis Code: {diagnosis_code}
