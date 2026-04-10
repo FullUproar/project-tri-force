@@ -142,12 +142,12 @@ export function Dashboard() {
           <div className="space-y-6">
             <ASCHome />
             <div className="text-center">
-              <button
-                onClick={() => setShowWorkSurface(true)}
-                className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-semibold hover:from-blue-700 hover:to-indigo-700"
+              <a
+                href="/cases"
+                className="inline-block px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-semibold hover:from-blue-700 hover:to-indigo-700"
               >
                 Start New Prior Auth Case
-              </button>
+              </a>
             </div>
           </div>
         ) : (

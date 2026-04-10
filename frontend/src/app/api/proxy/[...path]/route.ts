@@ -11,6 +11,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   return proxy(request, await params);
 }
 
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
+  return proxy(request, await params);
+}
+
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
+  return proxy(request, await params);
+}
+
 async function proxy(request: NextRequest, params: { path: string[] }) {
   const path = params.path.join("/");
   const url = new URL(`/${path}`, BACKEND_URL);
@@ -40,10 +48,9 @@ async function proxy(request: NextRequest, params: { path: string[] }) {
     headers,
   };
 
-  // Forward body for POST requests
-  if (request.method === "POST") {
+  // Forward body for POST/PUT/PATCH requests
+  if (["POST", "PUT", "PATCH"].includes(request.method)) {
     fetchOptions.body = await request.arrayBuffer();
-    // Don't set duplex for regular requests
   }
 
   try {

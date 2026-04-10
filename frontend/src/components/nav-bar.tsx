@@ -5,15 +5,15 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { UserButton } from "@clerk/nextjs";
-import { LayoutDashboard, BarChart3, Settings, CreditCard, BookOpen, Users, Menu, X } from "lucide-react";
+import { LayoutDashboard, BarChart3, Settings, CreditCard, BookOpen, Users, Menu, X, FolderOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
 
 const NAV_ITEMS = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/", label: "Home", icon: LayoutDashboard },
+  { href: "/cases", label: "Cases", icon: FolderOpen },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/billing", label: "Billing", icon: CreditCard },
-  { href: "/onboarding", label: "Setup Guide", icon: BookOpen },
 ];
 
 const ADMIN_ITEMS = [
@@ -57,7 +57,7 @@ export function NavBar() {
                 href={href}
                 className={cn(
                   "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-colors",
-                  pathname === href
+                  (pathname === href || (href !== "/" && pathname.startsWith(href)))
                     ? "bg-[var(--primary)] text-[var(--primary-foreground)]"
                     : "text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
                 )}
@@ -89,7 +89,7 @@ export function NavBar() {
               href={href}
               className={cn(
                 "flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors",
-                pathname === href
+                (pathname === href || (href !== "/" && pathname.startsWith(href)))
                   ? "bg-[var(--primary)] text-[var(--primary-foreground)]"
                   : "text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
               )}

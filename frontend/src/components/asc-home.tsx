@@ -162,7 +162,7 @@ export function ASCHome() {
           <h2 className="font-bold">Quick Actions</h2>
           <div className="space-y-3">
             <Link
-              href="/?action=upload"
+              href="/cases"
               className="flex items-center justify-between p-3 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg hover:from-blue-100 hover:to-indigo-100 transition-colors"
             >
               <div className="flex items-center gap-3">
